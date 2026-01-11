@@ -35,7 +35,7 @@ const QuestionnairesPage = () => {
         companyId: user?.company?.id,
         status: statusFilter || undefined,
       });
-      setQuestionnaires(response.data.questionnaires);
+      setQuestionnaires(response.data || []);
     } catch (error) {
       console.error('Failed to fetch questionnaires:', error);
       toast.error('Failed to load questionnaires');
@@ -77,7 +77,7 @@ const QuestionnairesPage = () => {
   };
 
   const filteredQuestionnaires = questionnaires.filter((q) =>
-    q.name.toLowerCase().includes(searchQuery.toLowerCase())
+    (q.title || q.name || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const getStatusBadge = (status) => {
@@ -98,7 +98,7 @@ const QuestionnairesPage = () => {
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
               <h3 className="text-lg font-semibold text-gray-900">
-                {questionnaire.name}
+                {questionnaire.title || questionnaire.name}
               </h3>
               <span className={getStatusBadge(questionnaire.status)}>
                 {questionnaire.status}
@@ -277,3 +277,5 @@ const QuestionnairesPage = () => {
 };
 
 export default QuestionnairesPage;
+
+
