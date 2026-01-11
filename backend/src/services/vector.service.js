@@ -148,6 +148,12 @@ function generateProfile(metaVectors) {
   
   for (const [meta, value] of Object.entries(metaVectors)) {
     const labels = META_VECTOR_LABELS[meta];
+    
+    // Skip vectors without defined labels (e.g., domain-added vectors)
+    if (!labels) {
+      continue;
+    }
+    
     const absValue = Math.abs(value);
     
     // Determine intensity

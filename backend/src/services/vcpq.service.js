@@ -18,9 +18,36 @@ const promptCompiler = require('./promptCompiler.service');
 const validateService = require('./validate.service');
 
 // Initialize Groq client
-const groq = new Groq({
+const groqPrimary = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
+
+const groqBackup = process.env.GROQ_API_BACKUPKEY 
+  ? new Groq({ apiKey: process.env.GROQ_API_BACKUPKEY })
+  : null;
+
+let useBackupKey = false;
+
+// Wrapper for automatic failover
+async function executeWithFailover(apiCall) {
+  const primary = useBackupKey ? groqBackup : groqPrimary;
+  const fallback = useBackupKey ? groqPrimary : groqBackup;
+  
+  try {
+    return await apiCall(primary || groqPrimary);
+  } catch (error) {
+    const isRateLimit = error.status === 429 || error.message?.includes('rate_limit') || error.error?.code === 'rate_limit_exceeded';
+    if (isRateLimit && fallback) {
+      console.log(`[VCPQ] Rate limit hit, switching to ${useBackupKey ? 'primary' : 'backup'} key...`);
+      useBackupKey = !useBackupKey;
+      return await apiCall(fallback);
+    }
+    throw error;
+  }
+}
+
+// Legacy alias for existing code
+const groq = groqPrimary;
 
 const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
 
@@ -97,12 +124,12 @@ async function generatePersonaName(domain, vectors) {
 Return ONLY the full name (first and last), nothing else.`;
 
   try {
-    const response = await groq.chat.completions.create({
+    const response = await executeWithFailover(async (client) => client.chat.completions.create({
       model: DEFAULT_MODEL,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 50,
       temperature: 0.8
-    });
+    }));
     
     return response.choices[0]?.message?.content?.trim() || 'Alex Morgan';
   } catch (error) {
@@ -133,12 +160,12 @@ Key traits: ${personalityTraits}
 Keep it factual and professional. Focus on career background, not personality.`;
 
   try {
-    const response = await groq.chat.completions.create({
+    const response = await executeWithFailover(async (client) => client.chat.completions.create({
       model: DEFAULT_MODEL,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 200,
       temperature: 0.7
-    });
+    }));
     
     return response.choices[0]?.message?.content?.trim() || '';
   } catch (error) {
@@ -180,12 +207,12 @@ async function chatWithVCPQPersona(systemPrompt, messageHistory = [], userMessag
   ];
 
   try {
-    const response = await groq.chat.completions.create({
+    const response = await executeWithFailover(async (client) => client.chat.completions.create({
       model: DEFAULT_MODEL,
       messages,
       max_tokens: 1000,
       temperature: 0.7
-    });
+    }));
     
     return response.choices[0]?.message?.content?.trim() || '';
   } catch (error) {
@@ -212,7 +239,7 @@ async function validateVCPQPersona(systemPrompt, inputMetaVectors) {
   const fullPrompt = `${validationPrompt}\n\nQuestions:\n${questionText}`;
   
   try {
-    const response = await groq.chat.completions.create({
+    const response = await executeWithFailover(async (client) => client.chat.completions.create({
       model: DEFAULT_MODEL,
       messages: [
         { role: 'system', content: systemPrompt },
@@ -220,7 +247,7 @@ async function validateVCPQPersona(systemPrompt, inputMetaVectors) {
       ],
       max_tokens: 500,
       temperature: 0.3 // Lower temperature for consistent scoring
-    });
+    }));
     
     const responseText = response.choices[0]?.message?.content || '';
     const parsed = validateService.parseValidationResponse(responseText);
@@ -363,3 +390,7 @@ module.exports = {
   generatePersonaName,
   inferAgeRange
 };
+
+
+
+
