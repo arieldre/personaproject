@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db');
+const { query } = require('../config/database');
 const vcpqService = require('../services/vcpq.service');
 const { questionnaireLimiter } = require('../middleware/security');
 
 // Get all questionnaires
 router.get('/', async (req, res) => {
   try {
-    const result = await pool.query(
+    const result = await query(
       'SELECT * FROM questionnaires ORDER BY created_at DESC'
     );
     res.json(result.rows);
@@ -22,7 +22,7 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const questionnaire = await pool.query(
+    const questionnaire = await query(
       'SELECT * FROM questionnaires WHERE id = $1',
       [id]
     );
@@ -31,7 +31,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Questionnaire not found' });
     }
     
-    const responses = await pool.query(
+    const responses = await query(
       'SELECT * FROM questionnaire_responses WHERE questionnaire_id = $1 ORDER BY created_at DESC',
       [id]
     );
@@ -51,7 +51,7 @@ router.post('/', async (req, res) => {
   try {
     const { title, description, questions, domain } = req.body;
     
-    const result = await pool.query(
+    const result = await query(
       `INSERT INTO questionnaires (title, description, questions, domain) 
        VALUES ($1, $2, $3, $4) 
        RETURNING *`,
@@ -72,7 +72,7 @@ router.post('/:id/responses', questionnaireLimiter, async (req, res) => {
     const { answers, demographics } = req.body;
     
     // Verify questionnaire exists
-    const questionnaire = await pool.query(
+    const questionnaire = await query(
       'SELECT * FROM questionnaires WHERE id = $1',
       [id]
     );
@@ -82,7 +82,7 @@ router.post('/:id/responses', questionnaireLimiter, async (req, res) => {
     }
     
     // Store the response
-    const result = await pool.query(
+    const result = await query(
       `INSERT INTO questionnaire_responses (questionnaire_id, answers, demographics) 
        VALUES ($1, $2, $3) 
        RETURNING *`,
@@ -102,7 +102,7 @@ router.post('/:id/generate-personas', async (req, res) => {
     const { id } = req.params;
     
     // Get questionnaire with domain info
-    const questionnaire = await pool.query(
+    const questionnaire = await query(
       'SELECT * FROM questionnaires WHERE id = $1',
       [id]
     );
@@ -114,7 +114,7 @@ router.post('/:id/generate-personas', async (req, res) => {
     const domain = questionnaire.rows[0].domain || 'general';
     
     // Get all unprocessed responses
-    const responses = await pool.query(
+    const responses = await query(
       `SELECT * FROM questionnaire_responses 
        WHERE questionnaire_id = $1 AND processed = false`,
       [id]
@@ -159,7 +159,7 @@ router.post('/:id/generate-personas', async (req, res) => {
         const vcpqResult = await vcpqService.generateVCPQPersona(vcpqScores, demographics, domain);
         
         // Save persona to database with VCPQ fields
-        const personaResult = await pool.query(
+        const personaResult = await query(
           `INSERT INTO personas 
            (name, role, department, traits, communication_style, decision_making, 
             background, goals, challenges, questionnaire_id, response_id,
@@ -191,7 +191,7 @@ router.post('/:id/generate-personas', async (req, res) => {
         generatedPersonas.push(personaResult.rows[0]);
         
         // Mark response as processed
-        await pool.query(
+        await query(
           'UPDATE questionnaire_responses SET processed = true WHERE id = $1',
           [response.id]
         );
@@ -219,10 +219,10 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     
     // Delete associated responses first
-    await pool.query('DELETE FROM questionnaire_responses WHERE questionnaire_id = $1', [id]);
+    await query('DELETE FROM questionnaire_responses WHERE questionnaire_id = $1', [id]);
     
     // Delete questionnaire
-    const result = await pool.query(
+    const result = await query(
       'DELETE FROM questionnaires WHERE id = $1 RETURNING *',
       [id]
     );

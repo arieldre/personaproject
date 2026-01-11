@@ -10,7 +10,7 @@ const vcpqService = require('../services/vcpq.service');
 const vectorService = require('../services/vector.service');
 const lexiconService = require('../services/lexicon.service');
 const promptCompiler = require('../services/promptCompiler.service');
-const db = require('../db');
+const db = require('../config/database');
 
 /**
  * GET /api/vcpq/questions
