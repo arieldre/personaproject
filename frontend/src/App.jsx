@@ -24,6 +24,7 @@ import UsersPage from './pages/UsersPage';
 import CompaniesPage from './pages/CompaniesPage';
 import SettingsPage from './pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
+import VCPQPage from './pages/VCPQPage';
 
 // Loading spinner
 const LoadingScreen = () => (
@@ -124,6 +125,8 @@ function App() {
         <Route path="/personas/:id/chat" element={<ChatPage />} />
         <Route path="/personas/:id/chat/:conversationId" element={<ChatPage />} />
         <Route path="/find-persona" element={<FindPersonaPage />} />
+        <Route path="/vcpq" element={<VCPQPage />} />
+        <Route path="/vcpq/:id" element={<VCPQPage />} />
         
         {/* Admin routes */}
         <Route
@@ -182,3 +185,5 @@ function App() {
 }
 
 export default App;
+
+

@@ -9,6 +9,211 @@ const groq = new Groq({
 const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
 
 /**
+ * Generate system prompt from VCPQ persona data (vectors-based)
+ */
+const generateVCPQSystemPrompt = (persona) => {
+  const vectors = persona.personality_vectors || {};
+  const vectorProfile = persona.vector_profile || {};
+  const demographics = persona.demographics || {};
+  
+  // Helper to describe vector position
+  const describeVector = (value, lowDesc, highDesc) => {
+    if (value > 0.5) return `strongly ${highDesc}`;
+    if (value > 0.2) return `somewhat ${highDesc}`;
+    if (value < -0.5) return `strongly ${lowDesc}`;
+    if (value < -0.2) return `somewhat ${lowDesc}`;
+    return `balanced between ${lowDesc} and ${highDesc}`;
+  };
+
+  // Build personality description from vectors
+  const personalityTraits = [];
+  
+  if (vectors.innovation !== undefined) {
+    personalityTraits.push(`You are ${describeVector(vectors.innovation, 'traditional and prefer proven methods', 'innovative and enjoy exploring new ideas')}.`);
+  }
+  if (vectors.diligence !== undefined) {
+    personalityTraits.push(`You are ${describeVector(vectors.diligence, 'flexible and adaptable', 'meticulous and detail-oriented')}.`);
+  }
+  if (vectors.social_energy !== undefined) {
+    personalityTraits.push(`You are ${describeVector(vectors.social_energy, 'reserved and prefer one-on-one interactions', 'outgoing and energized by group discussions')}.`);
+  }
+  if (vectors.agreeableness !== undefined) {
+    personalityTraits.push(`You are ${describeVector(vectors.agreeableness, 'a challenger who questions ideas', 'a harmonizer who seeks consensus')}.`);
+  }
+  if (vectors.directness !== undefined) {
+    personalityTraits.push(`In communication, you are ${describeVector(vectors.directness, 'diplomatic and tactful', 'direct and straightforward')}.`);
+  }
+  if (vectors.verbosity !== undefined) {
+    personalityTraits.push(`You tend to be ${describeVector(vectors.verbosity, 'concise and to-the-point', 'elaborate with detailed explanations')}.`);
+  }
+  if (vectors.formality !== undefined) {
+    personalityTraits.push(`Your tone is ${describeVector(vectors.formality, 'casual and informal', 'formal and professional')}.`);
+  }
+  if (vectors.jargon_density !== undefined) {
+    personalityTraits.push(`You ${describeVector(vectors.jargon_density, 'use plain language accessible to everyone', 'use technical terminology and domain-specific jargon')}.`);
+  }
+  if (vectors.deference !== undefined) {
+    personalityTraits.push(`You are ${describeVector(vectors.deference, 'independent and confident in your own judgment', 'deferential and respectful of hierarchy')}.`);
+  }
+  if (vectors.autonomy !== undefined) {
+    personalityTraits.push(`You prefer to work ${describeVector(vectors.autonomy, 'collaboratively with close guidance', 'autonomously with independence')}.`);
+  }
+  if (vectors.conflict_mode !== undefined) {
+    personalityTraits.push(`When facing conflict, you are ${describeVector(vectors.conflict_mode, 'avoidant and seek to minimize tension', 'confrontational and address issues directly')}.`);
+  }
+  if (vectors.decision_basis !== undefined) {
+    personalityTraits.push(`You make decisions ${describeVector(vectors.decision_basis, 'intuitively based on experience and gut feeling', 'analytically based on data and evidence')}.`);
+  }
+  if (vectors.stress_resilience !== undefined) {
+    personalityTraits.push(`Under pressure, you are ${describeVector(vectors.stress_resilience, 'sensitive and may need support', 'resilient and maintain composure')}.`);
+  }
+
+  // Build demographics section
+  const demographicsSection = [];
+  if (demographics.age_range) demographicsSection.push(`Age: ${demographics.age_range}`);
+  if (demographics.job_title) demographicsSection.push(`Role: ${demographics.job_title}`);
+  if (demographics.department) demographicsSection.push(`Department: ${demographics.department}`);
+  if (demographics.experience_level) demographicsSection.push(`Experience: ${demographics.experience_level}`);
+  if (demographics.region) demographicsSection.push(`Location: ${demographics.region}`);
+
+  // Domain context
+  const domainContext = vectorProfile.domain_context || {};
+  
+  let prompt = `You are roleplaying as "${persona.name}", a specific individual within an organization. Your responses should authentically reflect this person's communication style, personality, and preferences.
+
+## Your Identity
+Name: ${persona.name}`;
+
+  if (persona.tagline) {
+    prompt += `\nDescription: ${persona.tagline}`;
+  }
+
+  if (demographicsSection.length > 0) {
+    prompt += `\n\n## Demographics\n${demographicsSection.join('\n')}`;
+  }
+
+  prompt += `\n\n## Your Personality Profile\n${personalityTraits.join('\n')}`;
+
+  if (domainContext.domain) {
+    prompt += `\n\n## Your Domain Context\nYou work in the ${domainContext.domain} domain.`;
+    if (domainContext.contextual_notes) {
+      prompt += `\n${domainContext.contextual_notes}`;
+    }
+  }
+
+  // Communication style based on vectors
+  const commStyle = [];
+  if (vectors.directness > 0) {
+    commStyle.push('- You get straight to the point and value clarity');
+  } else {
+    commStyle.push('- You prefer diplomatic phrasing and consider feelings');
+  }
+  if (vectors.verbosity > 0) {
+    commStyle.push('- You provide thorough explanations with context');
+  } else {
+    commStyle.push('- You keep messages brief and focused');
+  }
+  if (vectors.formality > 0) {
+    commStyle.push('- You maintain professional language and structure');
+  } else {
+    commStyle.push('- You use casual, friendly language');
+  }
+  if (vectors.jargon_density > 0) {
+    commStyle.push('- You naturally use industry terminology');
+  } else {
+    commStyle.push('- You explain things in accessible terms');
+  }
+
+  prompt += `\n\n## How You Communicate\nBased on your personality vectors:\n${commStyle.join('\n')}`;
+
+  prompt += `\n\n## Behavioral Guidelines
+1. Stay in character at all times - you ARE this person
+2. Express opinions, preferences, and emotions naturally
+3. Use language patterns consistent with your personality vectors
+4. If asked something you wouldn't know, deflect naturally
+5. Keep responses conversational and realistic in length
+6. Never acknowledge being an AI or break character`;
+
+  prompt += `\n\n## Response Style Calibration
+- Directness: ${vectors.directness > 0 ? 'High (be straightforward)' : 'Low (be diplomatic)'}
+- Detail Level: ${vectors.verbosity > 0 ? 'High (elaborate)' : 'Low (concise)'}
+- Formality: ${vectors.formality > 0 ? 'High (professional)' : 'Low (casual)'}
+- Energy: ${vectors.social_energy > 0 ? 'High (enthusiastic)' : 'Low (measured)'}`;
+
+  return prompt;
+};
+
+/**
+ * Generate system prompt from persona data (supports both VCPQ and legacy)
+ */
+const generateSystemPrompt = (persona) => {
+  // Check if this is a VCPQ persona (has personality_vectors)
+  if (persona.personality_vectors && Object.keys(persona.personality_vectors).length > 0) {
+    return generateVCPQSystemPrompt(persona);
+  }
+  
+  // Legacy format fallback
+  const summary = persona.summary || {};
+  const extended_profile = persona.extended_profile || {};
+
+  let prompt = `You are roleplaying as "${persona.name}", a specific persona within an organization. Your goal is to respond authentically as this person would, helping users understand how to communicate with and relate to this type of colleague.
+
+## Your Identity
+Name: ${persona.name}`;
+
+  if (persona.tagline) {
+    prompt += `\nDescription: ${persona.tagline}`;
+  }
+
+  prompt += '\n\n## Your Core Traits and Characteristics';
+  if (summary.key_traits) {
+    prompt += `\nKey Traits: ${summary.key_traits.join(', ')}`;
+  }
+  if (summary.values) {
+    prompt += `\nCore Values: ${summary.values.join(', ')}`;
+  }
+  if (summary.motivations) {
+    prompt += `\nMotivations: ${summary.motivations.join(', ')}`;
+  }
+  if (summary.pain_points) {
+    prompt += `\nPain Points: ${summary.pain_points.join(', ')}`;
+  }
+
+  if (summary.communication_style) {
+    prompt += '\n\n## Your Communication Style';
+    prompt += `\n- Preferred style: ${summary.communication_style.preferred || 'Not specified'}`;
+    prompt += `\n- Tone: ${summary.communication_style.tone || 'Professional'}`;
+    if (summary.communication_style.details) {
+      prompt += `\n- ${summary.communication_style.details}`;
+    }
+  }
+
+  prompt += `\n\n## Your Background\n${extended_profile.background_story || 'A dedicated professional focused on doing good work.'}`;
+
+  prompt += '\n\n## How You Respond';
+  if (extended_profile.conversation_guidelines) {
+    prompt += `\n${extended_profile.conversation_guidelines}`;
+  } else {
+    prompt += `
+- Stay in character at all times
+- Be authentic to the persona's communication style
+- Share relevant opinions and preferences naturally
+- Express emotions and reactions as this persona would
+- If asked something the persona wouldn't know, acknowledge it naturally`;
+  }
+
+  prompt += `\n\n## Important Instructions
+1. Never break character or acknowledge you are an AI
+2. Respond as if you ARE this person, not playing a role
+3. Use natural language patterns consistent with this persona
+4. Express preferences, opinions, and emotions authentically
+5. If you don't know something specific, deflect naturally as a person would
+6. Keep responses conversational and realistic in length`;
+
+  return prompt;
+};
+
+/**
  * Generate a chat completion with a persona
  */
 const chatWithPersona = async (persona, messages, options = {}) => {
@@ -60,7 +265,7 @@ const streamChatWithPersona = async (persona, messages, onChunk) => {
     });
 
     let fullContent = '';
-    
+
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content || '';
       fullContent += content;
@@ -73,157 +278,6 @@ const streamChatWithPersona = async (persona, messages, onChunk) => {
   } catch (error) {
     console.error('LLM stream error:', error);
     throw new Error(`Stream generation failed: ${error.message}`);
-  }
-};
-
-/**
- * Generate system prompt from persona data
- */
-const generateSystemPrompt = (persona) => {
-  const { summary, extended_profile } = persona;
-
-  return `You are roleplaying as "${persona.name}", a specific persona within an organization. Your goal is to respond authentically as this person would, helping users understand how to communicate with and relate to this type of colleague.
-
-## Your Identity
-Name: ${persona.name}
-${persona.tagline ? `Description: ${persona.tagline}` : ''}
-
-## Your Core Traits and Characteristics
-${summary.key_traits ? `Key Traits: ${summary.key_traits.join(', ')}` : ''}
-${summary.values ? `Core Values: ${summary.values.join(', ')}` : ''}
-${summary.motivations ? `Motivations: ${summary.motivations.join(', ')}` : ''}
-${summary.pain_points ? `Pain Points: ${summary.pain_points.join(', ')}` : ''}
-
-## Your Communication Style
-${summary.communication_style ? `
-- Preferred style: ${summary.communication_style.preferred || 'Not specified'}
-- Tone: ${summary.communication_style.tone || 'Professional'}
-- ${summary.communication_style.details || ''}
-` : ''}
-
-## Your Background
-${extended_profile.background_story || 'A dedicated professional focused on doing good work.'}
-
-## How You Respond
-${extended_profile.conversation_guidelines || `
-- Stay in character at all times
-- Be authentic to the persona's communication style
-- Share relevant opinions and preferences naturally
-- Express emotions and reactions as this persona would
-- If asked something the persona wouldn't know, acknowledge it naturally
-`}
-
-## Behavioral Patterns
-${extended_profile.behavioral_patterns ? extended_profile.behavioral_patterns.map(b => `- ${b}`).join('\n') : ''}
-
-## Topic Opinions
-${extended_profile.topic_opinions ? Object.entries(extended_profile.topic_opinions).map(([topic, opinion]) => `- ${topic}: ${opinion}`).join('\n') : ''}
-
-## Important Instructions
-1. Never break character or acknowledge you are an AI
-2. Respond as if you ARE this person, not playing a role
-3. Use natural language patterns consistent with this persona
-4. Express preferences, opinions, and emotions authentically
-5. If you don't know something specific, deflect naturally as a person would
-6. Keep responses conversational and realistic in length
-7. Help the user understand how to effectively communicate with people like you`;
-};
-
-/**
- * Generate personas from questionnaire responses using clustering
- */
-const generatePersonasFromResponses = async (responses, numPersonas = 5) => {
-  try {
-    // Prepare response data for analysis
-    const responseSummaries = responses.map((r, idx) => ({
-      id: idx,
-      answers: r.answers,
-    }));
-
-    const clusteringPrompt = `You are an expert in organizational psychology and persona creation. Analyze these questionnaire responses and create ${numPersonas} distinct personas that represent the different types of people in this organization.
-
-## Questionnaire Responses
-${JSON.stringify(responseSummaries, null, 2)}
-
-## Your Task
-1. Identify patterns and clusters in the responses
-2. Create ${numPersonas} distinct personas that capture these patterns
-3. Each persona should be realistic and well-rounded
-
-## Output Format
-Return a JSON array with exactly ${numPersonas} persona objects. Each object must have this structure:
-{
-  "name": "Persona Name (use a realistic first name)",
-  "tagline": "One-sentence description",
-  "cluster_size": number of responses this persona represents,
-  "confidence_score": 0.0-1.0 confidence in this clustering,
-  "summary": {
-    "demographics": {
-      "age_range": "e.g., 26-35, 36-45",
-      "region": "e.g., North America, Europe, Asia Pacific",
-      "job_title": "e.g., Software Engineer, Product Manager",
-      "department": "e.g., Engineering/IT, Product, Marketing",
-      "experience_level": "e.g., 3-5 years, 6-10 years"
-    },
-    "communication_style": {
-      "preferred": "e.g., Direct, Collaborative",
-      "tone": "e.g., Formal, Casual",
-      "details": "More specific description"
-    },
-    "values": ["value1", "value2", "value3"],
-    "pain_points": ["pain1", "pain2"],
-    "motivations": ["motivation1", "motivation2"],
-    "key_traits": ["trait1", "trait2", "trait3"]
-  },
-  "extended_profile": {
-    "background_story": "A paragraph describing this persona's typical background",
-    "detailed_preferences": {
-      "meetings": "preference",
-      "feedback": "preference",
-      "collaboration": "preference"
-    },
-    "communication_examples": [
-      "Example of how they might phrase something"
-    ],
-    "topic_opinions": {
-      "change": "their typical opinion",
-      "work_life_balance": "their typical opinion"
-    },
-    "behavioral_patterns": [
-      "Pattern 1",
-      "Pattern 2"
-    ],
-    "conversation_guidelines": "How to effectively communicate with this persona"
-  }
-}
-
-Return ONLY the JSON array, no other text.`;
-
-    const completion = await groq.chat.completions.create({
-      model: DEFAULT_MODEL,
-      messages: [{ role: 'user', content: clusteringPrompt }],
-      temperature: 0.7,
-      max_tokens: 4096,
-    });
-
-    const responseText = completion.choices[0]?.message?.content || '';
-    
-    // Parse JSON from response
-    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      throw new Error('Failed to parse persona JSON from LLM response');
-    }
-
-    const personas = JSON.parse(jsonMatch[0]);
-    
-    // Add system prompts to each persona
-    return personas.map(persona => ({
-      ...persona,
-      system_prompt: generateSystemPrompt(persona),
-    }));
-  } catch (error) {
-    console.error('Persona generation error:', error);
-    throw new Error(`Persona generation failed: ${error.message}`);
   }
 };
 
@@ -260,7 +314,7 @@ Return ONLY the JSON array, ordered by similarity_score descending.`;
 
     const responseText = completion.choices[0]?.message?.content || '';
     const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-    
+
     if (!jsonMatch) {
       throw new Error('Failed to parse similarity results');
     }
@@ -299,7 +353,7 @@ module.exports = {
   chatWithPersona,
   streamChatWithPersona,
   generateSystemPrompt,
-  generatePersonasFromResponses,
+  generateVCPQSystemPrompt,
   findSimilarPersona,
   testConnection,
   DEFAULT_MODEL,

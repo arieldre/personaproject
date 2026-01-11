@@ -33,7 +33,7 @@ const llmLimiter = rateLimit({
 // Rate limiter for questionnaire submissions
 const questionnaireLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // 5 submissions per hour per IP
+  max: 1000, // Allow many submissions for testing
   message: { error: 'Submission limit exceeded, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -176,3 +176,4 @@ module.exports = {
   requestLogger,
   hpp: hpp(),
 };
+

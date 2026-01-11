@@ -49,7 +49,7 @@ router.get('/', requireCompanyAccess, async (req, res) => {
 router.get('/:id', validateUUIDParams('id'), requireCompanyAccess, async (req, res) => {
   try {
     const result = await query(
-      `SELECT p.*, q.name as questionnaire_name
+      `SELECT p.*, p.personality_vectors, p.demographics, p.vector_profile, p.raw_survey_scores, q.name as questionnaire_name
        FROM personas p
        LEFT JOIN questionnaires q ON p.questionnaire_id = q.id
        WHERE p.id = $1`,
@@ -585,3 +585,4 @@ router.delete('/conversations/:conversationId', validateUUIDParams('conversation
 });
 
 module.exports = router;
+

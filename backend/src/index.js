@@ -26,6 +26,7 @@ const companiesRoutes = require('./routes/companies.routes');
 const usersRoutes = require('./routes/users.routes');
 const questionnairesRoutes = require('./routes/questionnaires.routes');
 const personasRoutes = require('./routes/personas.routes');
+const vcpqRoutes = require('./routes/vcpq.routes');
 
 // Import services
 const { initializeTransporter } = require('./services/email.service');
@@ -108,6 +109,7 @@ app.use('/api/companies', companiesRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/questionnaires', questionnairesRoutes);
 app.use('/api/personas', personasRoutes);
+app.use('/api/vcpq', vcpqRoutes);
 
 // API info endpoint
 app.get('/api', (req, res) => {
@@ -121,6 +123,7 @@ app.get('/api', (req, res) => {
       users: '/api/users',
       questionnaires: '/api/questionnaires',
       personas: '/api/personas',
+      vcpq: '/api/vcpq',
     },
   });
 });
@@ -197,3 +200,6 @@ process.on('SIGINT', async () => {
 startServer();
 
 module.exports = app;
+
+
+
