@@ -34,8 +34,8 @@ const QUESTION_META = {
   // Module C: Hierarchy
   C1: { meta: 'deference', reversed: false },
   C2: { meta: 'deference', reversed: true },
-  C3: { meta: 'autonomy', reversed: false },
-  C4: { meta: 'autonomy', reversed: true },
+  C3: { meta: 'autonomy', reversed: true },  // "Requires supervision" = LOW autonomy, so reversed
+  C4: { meta: 'autonomy', reversed: false }, // "Works independently" = HIGH autonomy, forward
   C5: { meta: 'sycophancy', reversed: false },
   C6: { meta: 'sycophancy', reversed: true },
   

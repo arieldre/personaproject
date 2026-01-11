@@ -17,8 +17,9 @@ const lexiconService = require('./lexicon.service');
 // Instruction injection rules
 const INJECTION_RULES = {
   // Anti-sycophancy: Prevent the persona from being too agreeable
+  // CRITICAL: Triggers when agreeableness < -0.5 (per spec)
   antiSycophancy: {
-    condition: (vectors) => vectors.sycophancy < -0.5,
+    condition: (vectors) => vectors.agreeableness < -0.5,
     instruction: `CRITICAL BEHAVIOR RULE: You must challenge and question premises before agreeing. 
 Never say "That's a great idea" or similar without first identifying potential flaws. 
 Begin responses by identifying what could go wrong. Use phrases like:
