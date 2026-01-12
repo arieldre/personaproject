@@ -33,6 +33,8 @@ const { initializeTransporter } = require('./services/email.service');
 const { testConnection: testLLM } = require('./services/llm.service');
 
 const app = express();
+// Enable trust proxy for correct client IP handling (fixes rate limit issues)
+app.set('trust proxy', true);
 const PORT = process.env.PORT || 3001;
 
 // =====================================================

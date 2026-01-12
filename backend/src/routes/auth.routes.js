@@ -152,10 +152,18 @@ router.post('/login', authLimiter, validateLogin, async (req, res) => {
       return res.status(401).json({ error: 'Account is deactivated' });
     }
 
-    // Verify password
-    const isValid = await bcrypt.compare(password, user.password_hash);
-    if (!isValid) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+    // Debug logging for password comparison
+    console.log('Login attempt:', { email, password });
+    console.log('Stored hash:', user.password_hash);
+    try {
+      const isValid = await bcrypt.compare(password, user.password_hash);
+      console.log('bcrypt.compare result:', isValid);
+      if (!isValid) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+    } catch (err) {
+      console.error('bcrypt.compare error:', err);
+      return res.status(500).json({ error: 'Password comparison failed', details: err.message });
     }
 
     // Update last login

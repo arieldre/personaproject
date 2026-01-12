@@ -41,7 +41,7 @@ router.get('/access/:code', async (req, res) => {
       return res.status(404).json({ error: 'Questionnaire not found or inactive' });
     }
     const q = questionnaire.rows[0];
-    
+
     // Build VCPQ questions
     let questions = [];
     if (!q.template_id) {
@@ -55,9 +55,9 @@ router.get('/access/:code', async (req, res) => {
         category: vq.module
       }));
     }
-    
+
     // Add custom questions
-    const customQuestions = typeof q.custom_questions === 'string' 
+    const customQuestions = typeof q.custom_questions === 'string'
       ? JSON.parse(q.custom_questions) : (q.custom_questions || []);
     questions = [...questions, ...customQuestions];
 
@@ -107,7 +107,7 @@ router.get('/:id', async (req, res) => {
     );
     const q = questionnaire.rows[0];
     let questions = !q.template_id ? vcpqService.getVCPQQuestions() : [];
-    const customQuestions = typeof q.custom_questions === 'string' 
+    const customQuestions = typeof q.custom_questions === 'string'
       ? JSON.parse(q.custom_questions) : (q.custom_questions || []);
     res.json({ ...q, questions: [...questions, ...customQuestions], responses: responses.rows });
   } catch (error) {
@@ -180,7 +180,7 @@ router.post('/:id/responses', questionnaireLimiter, async (req, res) => {
     const questionnaire = await query('SELECT * FROM questionnaires WHERE id = $1', [id]);
     if (questionnaire.rows.length === 0) return res.status(404).json({ error: 'Questionnaire not found' });
     if (questionnaire.rows[0].status !== 'active') return res.status(400).json({ error: 'Questionnaire is not accepting responses' });
-    
+
     const result = await query(
       `INSERT INTO questionnaire_responses (questionnaire_id, answers, demographics) VALUES ($1, $2, $3) RETURNING *`,
       [id, JSON.stringify(answers), JSON.stringify(demographics || respondentInfo || {})]
@@ -193,23 +193,27 @@ router.post('/:id/responses', questionnaireLimiter, async (req, res) => {
   }
 });
 
-// Generate personas from questionnaire responses using VCPQ
+// Generate personas from questionnaire responses using VCPQ + Clustering
 router.post('/:id/generate-personas', async (req, res) => {
   try {
     const { id } = req.params;
+    const { maxPersonas = 10 } = req.body;
+
     const questionnaire = await query('SELECT * FROM questionnaires WHERE id = $1', [id]);
     if (questionnaire.rows.length === 0) return res.status(404).json({ error: 'Questionnaire not found' });
 
     const domain = questionnaire.rows[0].domain || 'general';
     const companyId = questionnaire.rows[0].company_id;
-    
+
     const responses = await query(
       `SELECT * FROM questionnaire_responses WHERE questionnaire_id = $1 AND processed = false`, [id]
     );
     if (responses.rows.length === 0) return res.status(400).json({ error: 'No unprocessed responses found' });
 
-    const generatedPersonas = [];
+    console.log(`[Clustering] Processing ${responses.rows.length} responses into max ${maxPersonas} personas`);
 
+    // Step 1: Process all responses into VCPQ vectors
+    const processedResponses = [];
     for (const response of responses.rows) {
       try {
         const answers = typeof response.answers === 'string' ? JSON.parse(response.answers) : response.answers;
@@ -228,60 +232,128 @@ router.post('/:id/generate-personas', async (req, res) => {
           continue;
         }
 
-        // Step 1: Process vectors using vectorService (V = (S-3)/2)
         const vectorResult = vectorService.processVCPQResponses(vcpqScores);
-        console.log(`[VCPQ] Response ${response.id}: Meta-vectors calculated`, vectorResult.meta_vectors);
+        processedResponses.push({
+          id: response.id,
+          vcpqScores,
+          demographics,
+          vectorResult
+        });
+      } catch (err) {
+        console.error('Error processing response:', response.id, err.message);
+      }
+    }
 
-        // Step 2: Generate persona with prompt compilation
-        const vcpqResult = await vcpqService.generateVCPQPersona(vcpqScores, demographics, domain);
-        console.log(`[VCPQ] Response ${response.id}: Applied rules:`, vcpqResult.applied_rules);
+    if (processedResponses.length === 0) {
+      return res.status(400).json({ error: 'No valid VCPQ responses to process' });
+    }
 
-        // Step 3: Insert persona with questionnaire_id as foreign key
+    // Step 2: Cluster responses using k-means
+    const clusteringService = require('../services/clustering.service');
+    const clusters = clusteringService.clusterResponses(processedResponses, { maxPersonas });
+
+    console.log(`[Clustering] Created ${clusters.length} clusters from ${processedResponses.length} responses`);
+
+    // Step 3: Generate one persona per cluster
+    const generatedPersonas = [];
+    for (const cluster of clusters) {
+      try {
+        // Use centroid as the representative meta-vectors
+        const centroidVectors = cluster.centroid;
+
+        // Aggregate demographics from cluster members
+        const aggregatedDemo = clusteringService.aggregateDemographics(cluster.members);
+
+        // Average the VCPQ scores from cluster members
+        const avgScores = {};
+        const scoreKeys = Object.keys(cluster.members[0].vcpqScores);
+        for (const key of scoreKeys) {
+          const sum = cluster.members.reduce((acc, m) => acc + (m.vcpqScores[key] || 3), 0);
+          avgScores[key] = Math.round(sum / cluster.members.length);
+        }
+
+        // Generate persona using averaged scores
+        const vcpqResult = await vcpqService.generateVCPQPersona(avgScores, aggregatedDemo, domain);
+
+        // Build summary
+        const summary = {
+          demographics: vcpqResult.demographics || aggregatedDemo,
+          communication_style: {
+            preferred: vcpqResult.communication_style || 'balanced',
+            traits: vcpqResult.traits || []
+          },
+          values: vcpqResult.goals || [],
+          pain_points: vcpqResult.challenges || [],
+          motivations: vcpqResult.goals || [],
+          key_traits: vcpqResult.traits || [],
+          cluster_info: {
+            size: cluster.size,
+            member_ids: cluster.members.map(m => m.id)
+          }
+        };
+
+        const extendedProfile = {
+          background_story: vcpqResult.background || '',
+          detailed_preferences: centroidVectors,
+          behavioral_patterns: vcpqResult.applied_rules || [],
+          conversation_guidelines: vcpqResult.decision_making || '',
+          vcpq_domain: domain,
+          vector_profile: {
+            centroid_vectors: centroidVectors,
+            avg_scores: avgScores,
+            applied_rules: vcpqResult.applied_rules
+          }
+        };
+
+        const role = aggregatedDemo.role || aggregatedDemo.job_title || 'Team Member';
+        const dept = aggregatedDemo.department || 'General';
+        const tagline = `${role} - ${dept} (${cluster.size} similar responses)`;
+
         const personaResult = await query(
           `INSERT INTO personas
-           (name, role, department, traits, communication_style, decision_making,
-            background, goals, challenges, questionnaire_id, response_id,
-            personality_vectors, demographics, vector_profile, company_id, system_prompt)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+           (company_id, questionnaire_id, name, tagline, status, summary, extended_profile, 
+            system_prompt, personality_vectors, raw_survey_scores, domain_context, 
+            cluster_size, generated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
            RETURNING *`,
           [
+            companyId,
+            id,
             vcpqResult.name,
-            demographics.role || 'Team Member',
-            demographics.department || 'General',
-            JSON.stringify(vcpqResult.traits || []),
-            vcpqResult.communication_style || '',
-            vcpqResult.decision_making || '',
-            vcpqResult.background || '',
-            JSON.stringify(vcpqResult.goals || []),
-            JSON.stringify(vcpqResult.challenges || []),
-            id,  // questionnaire_id foreign key
-            response.id,  // response_id foreign key
-            JSON.stringify(vcpqResult.personality_vectors),
-            JSON.stringify(vcpqResult.demographics),
-            JSON.stringify({ 
-              vcpq_scores: vcpqScores, 
-              normalized_scores: vectorResult.normalized_scores,
-              meta_vectors: vectorResult.meta_vectors,
-              profile: vectorResult.profile,
-              domain: domain, 
-              applied_rules: vcpqResult.applied_rules
-            }),
-            companyId,  // company_id for access control
-            vcpqResult.system_prompt  // Store compiled prompt
+            tagline,
+            'active',
+            JSON.stringify(summary),
+            JSON.stringify(extendedProfile),
+            vcpqResult.system_prompt,
+            JSON.stringify(centroidVectors),
+            JSON.stringify(avgScores),
+            domain,
+            cluster.size
           ]
         );
 
         generatedPersonas.push(personaResult.rows[0]);
-        await query('UPDATE questionnaire_responses SET processed = true WHERE id = $1', [response.id]);
+
+        // Mark all cluster members as processed
+        for (const member of cluster.members) {
+          await query('UPDATE questionnaire_responses SET processed = true WHERE id = $1', [member.id]);
+        }
+
+        console.log(`[Clustering] Created persona "${vcpqResult.name}" from cluster of ${cluster.size} responses`);
       } catch (personaError) {
-        console.error('Error generating persona for response:', response.id, personaError);
+        console.error('Error generating clustered persona:', personaError);
       }
     }
 
     res.json({
       success: true,
-      message: `Generated ${generatedPersonas.length} personas using VCPQ vector analysis`,
-      personas: generatedPersonas
+      message: `Generated ${generatedPersonas.length} personas from ${processedResponses.length} responses using clustering`,
+      personas: generatedPersonas,
+      clustering: {
+        total_responses: processedResponses.length,
+        clusters_created: clusters.length,
+        cluster_sizes: clusters.map(c => c.size)
+      }
     });
   } catch (error) {
     console.error('Error generating personas:', error);
