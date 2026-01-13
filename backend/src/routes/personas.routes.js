@@ -16,8 +16,11 @@ router.use(authenticate);
  */
 router.get('/', requireCompanyAccess, async (req, res) => {
   try {
-    const companyId = req.user.role === 'super_admin' ? req.query.companyId : req.user.company_id;
-    
+    // For super_admin, prefer query companyId, fallback to their own company_id
+    const companyId = req.user.role === 'super_admin'
+      ? (req.query.companyId || req.user.company_id)
+      : req.user.company_id;
+
     if (!companyId) {
       return res.status(400).json({ error: 'Company ID required' });
     }
@@ -39,6 +42,93 @@ router.get('/', requireCompanyAccess, async (req, res) => {
   } catch (error) {
     console.error('List personas error:', error);
     res.status(500).json({ error: 'Failed to list personas' });
+  }
+});
+
+/**
+ * GET /api/personas/engagement-stats
+ * Get persona engagement statistics for the company
+ */
+router.get('/engagement-stats', requireCompanyAccess, async (req, res) => {
+  try {
+    // For super_admin, prefer query companyId, fallback to their own company_id
+    const companyId = req.user.role === 'super_admin'
+      ? (req.query.companyId || req.user.company_id)
+      : req.user.company_id;
+
+    if (!companyId) {
+      return res.status(400).json({ error: 'Company ID required' });
+    }
+
+    // Get overall stats
+    const statsResult = await query(
+      `SELECT 
+        (SELECT COUNT(*) FROM conversations c 
+         JOIN personas p ON c.persona_id = p.id 
+         WHERE p.company_id = $1) as total_conversations,
+        (SELECT COUNT(*) FROM messages m 
+         JOIN conversations c ON m.conversation_id = c.id 
+         JOIN personas p ON c.persona_id = p.id 
+         WHERE p.company_id = $1) as total_messages,
+        (SELECT COUNT(*) FROM personas WHERE company_id = $1 AND status = 'active') as active_personas`,
+      [companyId]
+    );
+
+    // Get average messages per conversation
+    const avgResult = await query(
+      `SELECT COALESCE(AVG(msg_count), 0) as avg_messages_per_conversation
+       FROM (
+         SELECT c.id, COUNT(m.id) as msg_count
+         FROM conversations c
+         JOIN personas p ON c.persona_id = p.id
+         LEFT JOIN messages m ON m.conversation_id = c.id
+         WHERE p.company_id = $1
+         GROUP BY c.id
+       ) subq`,
+      [companyId]
+    );
+
+    // Get most active personas (top 5)
+    const topPersonasResult = await query(
+      `SELECT p.id, p.name, p.avatar_url, COUNT(c.id) as conversation_count,
+              COUNT(m.id) as message_count
+       FROM personas p
+       LEFT JOIN conversations c ON c.persona_id = p.id
+       LEFT JOIN messages m ON m.conversation_id = c.id
+       WHERE p.company_id = $1 AND p.status = 'active'
+       GROUP BY p.id, p.name, p.avatar_url
+       ORDER BY conversation_count DESC
+       LIMIT 5`,
+      [companyId]
+    );
+
+    // Get recent activity (last 7 days)
+    const recentResult = await query(
+      `SELECT 
+        (SELECT COUNT(*) FROM conversations c 
+         JOIN personas p ON c.persona_id = p.id 
+         WHERE p.company_id = $1 AND c.created_at > NOW() - INTERVAL '7 days') as conversations_this_week,
+        (SELECT COUNT(*) FROM messages m 
+         JOIN conversations c ON m.conversation_id = c.id 
+         JOIN personas p ON c.persona_id = p.id 
+         WHERE p.company_id = $1 AND m.created_at > NOW() - INTERVAL '7 days') as messages_this_week`,
+      [companyId]
+    );
+
+    res.json({
+      totalConversations: parseInt(statsResult.rows[0].total_conversations) || 0,
+      totalMessages: parseInt(statsResult.rows[0].total_messages) || 0,
+      activePersonas: parseInt(statsResult.rows[0].active_personas) || 0,
+      avgMessagesPerConversation: parseFloat(avgResult.rows[0].avg_messages_per_conversation).toFixed(1),
+      topPersonas: topPersonasResult.rows,
+      recentActivity: {
+        conversationsThisWeek: parseInt(recentResult.rows[0].conversations_this_week) || 0,
+        messagesThisWeek: parseInt(recentResult.rows[0].messages_this_week) || 0,
+      },
+    });
+  } catch (error) {
+    console.error('Get engagement stats error:', error);
+    res.status(500).json({ error: 'Failed to get engagement stats' });
   }
 });
 
@@ -186,7 +276,7 @@ router.post(
       }
 
       const companyId = req.user.role === 'super_admin' ? req.body.companyId : req.user.company_id;
-      
+
       if (!companyId) {
         return res.status(400).json({ error: 'Company ID required' });
       }
@@ -294,7 +384,7 @@ router.get('/:id/conversations', validateUUIDParams('id'), async (req, res) => {
 
     // Users see only their conversations, admins see all
     const isAdmin = req.user.role === 'super_admin' || req.user.role === 'company_admin';
-    
+
     const result = await query(
       `SELECT c.*, u.email as user_email, u.first_name, u.last_name
        FROM conversations c
@@ -321,7 +411,7 @@ router.post('/:id/conversations', validateUUIDParams('id'), async (req, res) => 
       'SELECT * FROM personas WHERE id = $1 AND status = $2',
       [req.params.id, 'active']
     );
-    
+
     if (!persona.rows[0]) {
       return res.status(404).json({ error: 'Persona not found or not active' });
     }
@@ -378,7 +468,7 @@ router.get('/conversations/:conversationId', validateUUIDParams('conversationId'
     // Verify access (own conversation or admin)
     const isOwner = conversation.rows[0].user_id === req.user.id;
     const isAdmin = req.user.role === 'super_admin' || req.user.role === 'company_admin';
-    
+
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -570,7 +660,7 @@ router.delete('/conversations/:conversationId', validateUUIDParams('conversation
     // Verify ownership or admin
     const isOwner = conversation.rows[0].user_id === req.user.id;
     const isAdmin = req.user.role === 'super_admin' || req.user.role === 'company_admin';
-    
+
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ error: 'Access denied' });
     }

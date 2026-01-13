@@ -120,6 +120,75 @@ router.post(
 );
 
 /**
+ * POST /api/companies/create-own
+ * Self-service company creation for admins without a company
+ */
+router.post(
+  '/create-own',
+  [
+    body('name').trim().isLength({ min: 2, max: 255 }).withMessage('Company name must be 2-255 characters'),
+    body('industry').optional().trim().isLength({ max: 100 }),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      // Check if user already has a company
+      if (req.user.company_id) {
+        return res.status(400).json({ error: 'You already belong to a company' });
+      }
+
+      const { name, industry } = req.body;
+
+      // Generate unique slug
+      let slug = slugify(name, { lower: true, strict: true });
+      const existingSlug = await query('SELECT id FROM companies WHERE slug = $1', [slug]);
+      if (existingSlug.rows[0]) {
+        slug = `${slug}-${Date.now().toString(36)}`;
+      }
+
+      // Create company with trial status
+      const companyResult = await query(
+        `INSERT INTO companies (name, slug, industry, license_count, subscription_status, created_by)
+         VALUES ($1, $2, $3, 5, 'trial', $4)
+         RETURNING *`,
+        [name, slug, industry, req.user.id]
+      );
+
+      const company = companyResult.rows[0];
+
+      // Assign user to company as company_admin
+      await query(
+        `UPDATE users SET company_id = $1, role = 'company_admin' WHERE id = $2`,
+        [company.id, req.user.id]
+      );
+
+      await audit.log({
+        userId: req.user.id,
+        companyId: company.id,
+        action: audit.ACTIONS.COMPANY_CREATE,
+        entityType: 'company',
+        entityId: company.id,
+        newValues: company,
+        metadata: { selfService: true },
+        req,
+      });
+
+      res.status(201).json({
+        company,
+        message: 'Company created successfully! You are now the admin.',
+      });
+    } catch (error) {
+      console.error('Self-service create company error:', error);
+      res.status(500).json({ error: 'Failed to create company' });
+    }
+  }
+);
+
+/**
  * GET /api/companies/:id
  * Get company details
  */
@@ -170,7 +239,7 @@ router.put(
       }
 
       const companyId = req.user.role === 'super_admin' ? req.params.id : req.user.company_id;
-      
+
       // Get current values
       const current = await query('SELECT * FROM companies WHERE id = $1', [companyId]);
       if (!current.rows[0]) {

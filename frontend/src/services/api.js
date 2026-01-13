@@ -73,6 +73,7 @@ export const authAPI = {
 export const companiesAPI = {
   list: (params) => api.get('/companies', { params }),
   create: (data) => api.post('/companies', data),
+  createOwn: (data) => api.post('/companies/create-own', data),
   get: (id) => api.get(`/companies/${id}`),
   update: (id, data) => api.put(`/companies/${id}`, data),
   updateLicenses: (id, data) => api.put(`/companies/${id}/licenses`, data),
@@ -116,6 +117,7 @@ export const personasAPI = {
   update: (id, data) => api.put(`/personas/${id}`, data),
   delete: (id) => api.delete(`/personas/${id}`),
   findSimilar: (data) => api.post('/personas/find-similar', data),
+  getEngagementStats: () => api.get('/personas/engagement-stats'),
   // Conversations
   getConversations: (personaId) => api.get(`/personas/${personaId}/conversations`),
   createConversation: (personaId, data) => api.post(`/personas/${personaId}/conversations`, data),
