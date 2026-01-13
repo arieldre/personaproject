@@ -110,9 +110,9 @@ const QuestionnairesPage = () => {
 
             {/* Stats */}
             <div className="flex items-center gap-4 mt-4">
-              <div className="flex items-center gap-1 text-sm text-gray-500">
+              <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
                 <Users className="w-4 h-4" />
-                <span>{questionnaire.completed_responses || 0} responses</span>
+                <span>{questionnaire.total_responses || 0} responses</span>
               </div>
               {questionnaire.access_code && (
                 <button
