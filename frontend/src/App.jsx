@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './context/authStore';
+import { useThemeStore } from './context/themeStore';
 
 // Layouts
 import MainLayout from './components/common/MainLayout';
@@ -75,10 +76,12 @@ const PublicRoute = ({ children }) => {
 
 function App() {
   const { initialize, isLoading } = useAuthStore();
+  const { initialize: initializeTheme } = useThemeStore();
 
   useEffect(() => {
     initialize();
-  }, [initialize]);
+    initializeTheme();
+  }, [initialize, initializeTheme]);
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -127,7 +130,7 @@ function App() {
         <Route path="/find-persona" element={<FindPersonaPage />} />
         <Route path="/vcpq" element={<VCPQPage />} />
         <Route path="/vcpq/:id" element={<VCPQPage />} />
-        
+
         {/* Admin routes */}
         <Route
           path="/questionnaires"
@@ -161,7 +164,7 @@ function App() {
             </ProtectedRoute>
           }
         />
-        
+
         {/* Super admin routes */}
         <Route
           path="/companies"
@@ -171,13 +174,13 @@ function App() {
             </ProtectedRoute>
           }
         />
-        
+
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 
       {/* Redirects */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      
+
       {/* 404 */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

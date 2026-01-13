@@ -72,14 +72,14 @@ const AuthLayout = () => {
       </div>
 
       {/* Right panel - auth form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-gray-50">
+      <div className="flex-1 flex items-center justify-center p-8 bg-gray-50 dark:bg-gray-900 transition-colors">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="flex items-center justify-center gap-2 mb-8 lg:hidden">
             <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center">
               <Sparkles className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold">Persona</span>
+            <span className="text-2xl font-bold dark:text-white">Persona</span>
           </div>
 
           <Outlet />

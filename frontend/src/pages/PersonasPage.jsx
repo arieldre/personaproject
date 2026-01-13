@@ -57,81 +57,53 @@ const PersonasPage = () => {
   const PersonaCard = ({ persona }) => (
     <Link
       to={`/personas/${persona.id}`}
-      className="card-hover p-6 group animate-fade-in"
+      className="card-hover p-4 group animate-fade-in flex flex-col"
     >
-      <div className="flex items-start gap-4">
-        {/* Avatar */}
-        <div className="relative">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 via-primary-500 to-secondary-500 flex items-center justify-center text-white font-bold text-2xl shadow-lg">
-            {persona.name[0]}
-          </div>
-          {persona.confidence_score && (
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white shadow flex items-center justify-center">
-              <span className="text-xs font-bold text-primary-600">
-                {Math.round(persona.confidence_score * 100)}%
-              </span>
-            </div>
-          )}
+      {/* Header with avatar and name */}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 via-primary-500 to-secondary-500 flex items-center justify-center text-white font-bold text-lg shadow-md flex-shrink-0">
+          {persona.name[0]}
         </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 transition-colors truncate">
               {persona.name}
             </h3>
-            {persona.cluster_size && (
-              <span className="badge-gray text-xs">
-                {persona.cluster_size} people
-              </span>
-            )}
           </div>
-          <p className="text-gray-500 mt-1 line-clamp-2">{persona.tagline}</p>
-
-          {/* Demographics */}
-          {persona.summary?.demographics && (
-            <p className="text-xs text-gray-400 mt-1">
-              {[
-                persona.summary.demographics.job_title,
-                persona.summary.demographics.region,
-                persona.summary.demographics.age_range
-              ].filter(Boolean).join(' • ')}
-            </p>
-          )}
-
-          {/* Traits */}
-          {persona.summary?.key_traits && (
-            <div className="flex flex-wrap gap-2 mt-3">
-              {persona.summary.key_traits.slice(0, 3).map((trait, index) => (
-                <span
-                  key={trait}
-                  className={`px-2 py-1 rounded-lg text-xs font-medium ${getTraitColor(index)}`}
-                >
-                  {trait}
-                </span>
-              ))}
-            </div>
+          {persona.cluster_size && (
+            <span className="badge-primary text-xs">
+              {persona.cluster_size} people
+            </span>
           )}
         </div>
-
-        {/* Arrow */}
-        <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary-600 group-hover:translate-x-1 transition-all flex-shrink-0" />
+        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-primary-600 group-hover:translate-x-1 transition-all flex-shrink-0" />
       </div>
 
-      {/* Quick actions */}
-      <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100">
+      {/* Tagline */}
+      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-2">
+        {persona.tagline}
+      </p>
+
+      {/* Demographics */}
+      {persona.summary?.demographics && (
+        <p className="text-xs text-gray-400 dark:text-gray-500 truncate mb-2">
+          {[
+            persona.summary.demographics.job_title,
+            persona.summary.demographics.age_range
+          ].filter(Boolean).join(' • ')}
+        </p>
+      )}
+
+      {/* Quick action */}
+      <div className="flex items-center gap-2 mt-auto pt-2 border-t border-gray-100 dark:border-gray-700">
         <Link
           to={`/personas/${persona.id}/chat`}
           onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-primary-600 transition-colors"
+          className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-primary-600 transition-colors"
         >
-          <MessageSquare className="w-4 h-4" />
-          Start chat
+          <MessageSquare className="w-3 h-3" />
+          Chat
         </Link>
-        <span className="text-gray-300">•</span>
-        <span className="text-sm text-gray-500">
-          {persona.summary?.communication_style?.preferred || 'Professional'} communicator
-        </span>
       </div>
     </Link>
   );
@@ -183,7 +155,7 @@ const PersonasPage = () => {
           <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
         </div>
       ) : filteredPersonas.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredPersonas.map((persona) => (
             <PersonaCard key={persona.id} persona={persona} />
           ))}
