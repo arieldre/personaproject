@@ -33,7 +33,7 @@ router.get('/', requireCompanyAccess, async (req, res) => {
               q.name as questionnaire_name
        FROM personas p
        LEFT JOIN questionnaires q ON p.questionnaire_id = q.id
-       WHERE p.company_id = $1 AND p.status = $2
+       WHERE p.company_id = $1 AND p.status = $2 AND (p.is_default IS NULL OR p.is_default = false)
        ORDER BY p.created_at DESC`,
       [companyId, status]
     );
@@ -42,6 +42,27 @@ router.get('/', requireCompanyAccess, async (req, res) => {
   } catch (error) {
     console.error('List personas error:', error);
     res.status(500).json({ error: 'Failed to list personas' });
+  }
+});
+
+/**
+ * GET /api/personas/defaults
+ * Get default showcase personas available to all users
+ */
+router.get('/defaults', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, name, avatar_url, tagline, status, summary,
+              personality_vectors, demographics, vector_profile, created_at
+       FROM personas
+       WHERE is_default = true AND status = 'active'
+       ORDER BY name ASC`
+    );
+
+    res.json({ personas: result.rows });
+  } catch (error) {
+    console.error('List default personas error:', error);
+    res.status(500).json({ error: 'Failed to list default personas' });
   }
 });
 

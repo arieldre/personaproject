@@ -79,12 +79,12 @@ const PersonaDetailPage = () => {
 
   // Check if this is a VCPQ persona (has personality_vectors)
   const isVCPQPersona = persona.personality_vectors || persona.vector_profile;
-  
+
   // VCPQ data
   const vectors = persona.personality_vectors || {};
   const vectorProfile = persona.vector_profile || {};
   const demographics = persona.demographics || persona.summary?.demographics || {};
-  
+
   // Legacy data
   const summary = persona.summary || {};
   const extended = persona.extended_profile || {};
@@ -107,23 +107,23 @@ const PersonaDetailPage = () => {
       decision_basis: { label: 'Decision Making', low: 'Intuitive', high: 'Analytical', color: 'emerald' },
       stress_resilience: { label: 'Stress Resilience', low: 'Sensitive', high: 'Resilient', color: 'teal' },
     };
-    
+
     const info = vectorInfo[key] || { label: key, low: 'Low', high: 'High', color: 'gray' };
     const normalizedValue = (value + 1) / 2; // Convert -1 to 1 range to 0 to 1
-    
+
     return { ...info, value, normalizedValue };
   };
 
   // Extract personality insights from vectors
   const getPersonalityInsights = () => {
     if (!vectors || Object.keys(vectors).length === 0) return null;
-    
+
     const strengths = [];
     const challenges = [];
     const communicationStyle = [];
     const learningStyle = [];
     const motivations = [];
-    
+
     // Analyze vectors for insights
     if (vectors.innovation > 0.3) {
       strengths.push('Creative problem-solving');
@@ -132,7 +132,7 @@ const PersonaDetailPage = () => {
       strengths.push('Reliable, proven methods');
       motivations.push('Stability and predictability');
     }
-    
+
     if (vectors.diligence > 0.3) {
       strengths.push('Attention to detail');
       strengths.push('Thorough and methodical');
@@ -140,7 +140,7 @@ const PersonaDetailPage = () => {
       strengths.push('Quick adaptation');
       strengths.push('Flexible approach');
     }
-    
+
     if (vectors.social_energy > 0.3) {
       strengths.push('Team collaboration');
       communicationStyle.push('Energized by group discussions');
@@ -150,7 +150,7 @@ const PersonaDetailPage = () => {
       communicationStyle.push('Prefers one-on-one conversations');
       learningStyle.push('Independent study');
     }
-    
+
     if (vectors.directness > 0.3) {
       communicationStyle.push('Clear and straightforward');
       challenges.push('May come across as blunt');
@@ -158,7 +158,7 @@ const PersonaDetailPage = () => {
       communicationStyle.push('Diplomatic and tactful');
       challenges.push('May avoid difficult conversations');
     }
-    
+
     if (vectors.verbosity > 0.3) {
       communicationStyle.push('Detailed explanations');
       learningStyle.push('Comprehensive documentation');
@@ -166,7 +166,7 @@ const PersonaDetailPage = () => {
       communicationStyle.push('Brief and to-the-point');
       learningStyle.push('Quick summaries and bullet points');
     }
-    
+
     if (vectors.decision_basis > 0.3) {
       strengths.push('Data-driven decisions');
       learningStyle.push('Evidence-based learning');
@@ -176,13 +176,13 @@ const PersonaDetailPage = () => {
       learningStyle.push('Experience-based learning');
       motivations.push('Following instincts');
     }
-    
+
     if (vectors.stress_resilience > 0.3) {
       strengths.push('Calm under pressure');
     } else if (vectors.stress_resilience < -0.3) {
       challenges.push('Sensitive to high-pressure situations');
     }
-    
+
     if (vectors.autonomy > 0.3) {
       motivations.push('Independence and self-direction');
       learningStyle.push('Self-paced learning');
@@ -190,7 +190,7 @@ const PersonaDetailPage = () => {
       motivations.push('Team success and collaboration');
       learningStyle.push('Guided learning with mentorship');
     }
-    
+
     return {
       strengths: strengths.length > 0 ? strengths : ['Adaptable', 'Well-rounded'],
       challenges: challenges.length > 0 ? challenges : ['Balance between different approaches'],
@@ -202,13 +202,13 @@ const PersonaDetailPage = () => {
 
   const insights = getPersonalityInsights();
 
-  const Section = ({ title, icon: Icon, children, color = 'bg-gray-100' }) => (
+  const Section = ({ title, icon: Icon, children, color = 'bg-gray-100 dark:bg-gray-700' }) => (
     <div className="card p-6">
       <div className="flex items-center gap-3 mb-4">
         <div className={`p-2 rounded-lg ${color}`}>
           <Icon className="w-5 h-5" />
         </div>
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
       </div>
       {children}
     </div>
@@ -223,20 +223,20 @@ const PersonaDetailPage = () => {
   const VectorBar = ({ vectorKey, value }) => {
     const display = getVectorDisplay(vectorKey, value);
     const percentage = display.normalizedValue * 100;
-    
+
     return (
       <div className="space-y-1">
         <div className="flex justify-between text-sm">
-          <span className="text-gray-500">{display.low}</span>
-          <span className="font-medium text-gray-700">{display.label}</span>
-          <span className="text-gray-500">{display.high}</span>
+          <span className="text-gray-500 dark:text-gray-400">{display.low}</span>
+          <span className="font-medium text-gray-700 dark:text-gray-200">{display.label}</span>
+          <span className="text-gray-500 dark:text-gray-400">{display.high}</span>
         </div>
-        <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden">
-          <div 
+        <div className="relative h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <div
             className="absolute h-full bg-primary-500 rounded-full transition-all duration-500"
             style={{ width: `${percentage}%` }}
           />
-          <div 
+          <div
             className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-2 border-primary-600 rounded-full shadow"
             style={{ left: `calc(${percentage}% - 6px)` }}
           />
@@ -258,13 +258,13 @@ const PersonaDetailPage = () => {
       <div className="flex items-center gap-4">
         <Link
           to="/personas"
-          className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">{persona.name}</h1>
-          <p className="text-gray-600">{persona.tagline}</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{persona.name}</h1>
+          <p className="text-gray-600 dark:text-gray-400">{persona.tagline}</p>
         </div>
         <div className="flex items-center gap-2">
           {isAdmin() && (
@@ -296,22 +296,22 @@ const PersonaDetailPage = () => {
               {persona.name[0]}
             </div>
           </div>
-          
+
           {/* Person Info */}
           <div className="flex-1 space-y-4">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">{persona.name}</h2>
-              <p className="text-lg text-gray-600">{persona.tagline}</p>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{persona.name}</h2>
+              <p className="text-lg text-gray-600 dark:text-gray-400">{persona.tagline}</p>
             </div>
-            
+
             {/* Demographics Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {demographics.age_range && (
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-500">Age</p>
-                    <p className="font-medium text-gray-900">{demographics.age_range}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Age</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{demographics.age_range}</p>
                   </div>
                 </div>
               )}
@@ -319,8 +319,8 @@ const PersonaDetailPage = () => {
                 <div className="flex items-center gap-2">
                   <Briefcase className="w-4 h-4 text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-500">Role</p>
-                    <p className="font-medium text-gray-900">{demographics.job_title}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Role</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{demographics.job_title}</p>
                   </div>
                 </div>
               )}
@@ -328,8 +328,8 @@ const PersonaDetailPage = () => {
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-500">Department</p>
-                    <p className="font-medium text-gray-900">{demographics.department}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Department</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{demographics.department}</p>
                   </div>
                 </div>
               )}
@@ -346,8 +346,8 @@ const PersonaDetailPage = () => {
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-500">Location</p>
-                    <p className="font-medium text-gray-900">{demographics.region}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Location</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{demographics.region}</p>
                   </div>
                 </div>
               )}
@@ -356,9 +356,9 @@ const PersonaDetailPage = () => {
             {/* Confidence & Cluster Info */}
             <div className="flex flex-wrap gap-4">
               {persona.cluster_size && (
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg">
-                  <Users className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm text-gray-600">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                  <Users className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  <span className="text-sm text-gray-600 dark:text-gray-300">
                     Represents {persona.cluster_size} people
                   </span>
                 </div>
@@ -378,16 +378,15 @@ const PersonaDetailPage = () => {
 
       {/* Tabs Navigation */}
       {isVCPQPersona && (
-        <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
+        <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                activeTab === tab.id
-                  ? 'bg-white text-primary-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === tab.id
+                  ? 'bg-white dark:bg-gray-700 text-primary-600 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
             >
               <tab.icon className="w-4 h-4" />
               {tab.label}
@@ -424,7 +423,7 @@ const PersonaDetailPage = () => {
                     {insights.motivations.map((motivation, i) => (
                       <li key={i} className="flex items-start gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 mt-2 flex-shrink-0" />
-                        <span className="text-gray-700">{motivation}</span>
+                        <span className="text-gray-700 dark:text-gray-300">{motivation}</span>
                       </li>
                     ))}
                   </ul>
@@ -442,7 +441,7 @@ const PersonaDetailPage = () => {
                   ))}
                 </div>
               </Section>
-              
+
               {vectorProfile.domain_context && (
                 <Section title="Domain Context" icon={Briefcase} color="bg-blue-100">
                   <div className="space-y-3">
@@ -461,7 +460,7 @@ const PersonaDetailPage = () => {
                   {insights.communicationStyle.map((style, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
-                      <span className="text-gray-700">{style}</span>
+                      <span className="text-gray-700 dark:text-gray-300">{style}</span>
                     </li>
                   ))}
                 </ul>
@@ -472,7 +471,7 @@ const PersonaDetailPage = () => {
                   {insights.learningStyle.map((style, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-2 flex-shrink-0" />
-                      <span className="text-gray-700">{style}</span>
+                      <span className="text-gray-700 dark:text-gray-300">{style}</span>
                     </li>
                   ))}
                 </ul>
@@ -481,10 +480,10 @@ const PersonaDetailPage = () => {
               <div className="lg:col-span-2">
                 <div className="card p-6 bg-primary-50 border-primary-100">
                   <h3 className="text-lg font-semibold text-primary-900 mb-3">
-                     How to Communicate with {persona.name}
+                    How to Communicate with {persona.name}
                   </h3>
                   <p className="text-primary-800">
-                    {vectors.directness > 0 
+                    {vectors.directness > 0
                       ? `Be direct and get to the point quickly. ${persona.name} appreciates clarity and honesty.`
                       : `Use a diplomatic approach. ${persona.name} values tact and considers feelings important.`
                     }
@@ -509,7 +508,7 @@ const PersonaDetailPage = () => {
                   {insights.strengths.map((strength, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-500 mt-2 flex-shrink-0" />
-                      <span className="text-gray-700">{strength}</span>
+                      <span className="text-gray-700 dark:text-gray-300">{strength}</span>
                     </li>
                   ))}
                 </ul>
@@ -520,7 +519,7 @@ const PersonaDetailPage = () => {
                   {insights.challenges.map((challenge, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-2 flex-shrink-0" />
-                      <span className="text-gray-700">{challenge}</span>
+                      <span className="text-gray-700 dark:text-gray-300">{challenge}</span>
                     </li>
                   ))}
                 </ul>
@@ -573,8 +572,8 @@ const PersonaDetailPage = () => {
                         i % 3 === 0
                           ? 'bg-primary-100 text-primary-700'
                           : i % 3 === 1
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-purple-100 text-purple-700'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-purple-100 text-purple-700'
                       }
                     />
                   ))}
@@ -638,7 +637,7 @@ const PersonaDetailPage = () => {
             {extended.conversation_guidelines && (
               <div className="card p-6 bg-primary-50 border-primary-100">
                 <h3 className="text-lg font-semibold text-primary-900 mb-3">
-                   How to Communicate with {persona.name}
+                  How to Communicate with {persona.name}
                 </h3>
                 <p className="text-primary-800">
                   {extended.conversation_guidelines}

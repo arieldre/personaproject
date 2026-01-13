@@ -118,6 +118,7 @@ export const personasAPI = {
   delete: (id) => api.delete(`/personas/${id}`),
   findSimilar: (data) => api.post('/personas/find-similar', data),
   getEngagementStats: () => api.get('/personas/engagement-stats'),
+  getDefaults: () => api.get('/personas/defaults'),
   // Conversations
   getConversations: (personaId) => api.get(`/personas/${personaId}/conversations`),
   createConversation: (personaId, data) => api.post(`/personas/${personaId}/conversations`, data),

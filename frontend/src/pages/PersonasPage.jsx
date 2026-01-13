@@ -9,14 +9,19 @@ import {
   Filter,
   Loader2,
   ChevronRight,
+  Sparkles,
+  Building2,
 } from 'lucide-react';
 
 const PersonasPage = () => {
   const { user } = useAuthStore();
   const [personas, setPersonas] = useState([]);
+  const [defaultPersonas, setDefaultPersonas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingDefaults, setLoadingDefaults] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
+  const [activeTab, setActiveTab] = useState('my'); // 'my' or 'default'
 
   useEffect(() => {
     const fetchPersonas = async () => {
@@ -35,33 +40,53 @@ const PersonasPage = () => {
 
     if (user?.company?.id) {
       fetchPersonas();
+    } else {
+      setLoading(false);
     }
   }, [user?.company?.id, statusFilter]);
 
-  const filteredPersonas = personas.filter((persona) =>
+  useEffect(() => {
+    const fetchDefaultPersonas = async () => {
+      try {
+        const response = await personasAPI.getDefaults();
+        setDefaultPersonas(response.data.personas);
+      } catch (error) {
+        console.error('Failed to fetch default personas:', error);
+      } finally {
+        setLoadingDefaults(false);
+      }
+    };
+
+    fetchDefaultPersonas();
+  }, []);
+
+  const currentPersonas = activeTab === 'my' ? personas : defaultPersonas;
+  const currentLoading = activeTab === 'my' ? loading : loadingDefaults;
+
+  const filteredPersonas = currentPersonas.filter((persona) =>
     persona.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     persona.tagline?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const getTraitColor = (index) => {
     const colors = [
-      'bg-blue-100 text-blue-700',
-      'bg-green-100 text-green-700',
-      'bg-purple-100 text-purple-700',
-      'bg-yellow-100 text-yellow-700',
-      'bg-pink-100 text-pink-700',
+      'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+      'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+      'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+      'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+      'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300',
     ];
     return colors[index % colors.length];
   };
 
-  const PersonaCard = ({ persona }) => (
+  const PersonaCard = ({ persona, isDefault = false }) => (
     <Link
       to={`/personas/${persona.id}`}
       className="card-hover p-4 group animate-fade-in flex flex-col"
     >
       {/* Header with avatar and name */}
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 via-primary-500 to-secondary-500 flex items-center justify-center text-white font-bold text-lg shadow-md flex-shrink-0">
+        <div className={`w-10 h-10 rounded-xl ${isDefault ? 'bg-gradient-to-br from-amber-400 via-orange-500 to-red-500' : 'bg-gradient-to-br from-primary-400 via-primary-500 to-secondary-500'} flex items-center justify-center text-white font-bold text-lg shadow-md flex-shrink-0`}>
           {persona.name[0]}
         </div>
         <div className="min-w-0 flex-1">
@@ -69,6 +94,9 @@ const PersonasPage = () => {
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 transition-colors truncate">
               {persona.name}
             </h3>
+            {isDefault && (
+              <Sparkles className="w-3 h-3 text-amber-500 flex-shrink-0" />
+            )}
           </div>
           {persona.cluster_size && (
             <span className="badge-primary text-xs">
@@ -80,31 +108,23 @@ const PersonasPage = () => {
       </div>
 
       {/* Tagline */}
-      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-2">
+      <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-3 flex-1">
         {persona.tagline}
       </p>
 
-      {/* Demographics */}
-      {persona.summary?.demographics && (
-        <p className="text-xs text-gray-400 dark:text-gray-500 truncate mb-2">
-          {[
-            persona.summary.demographics.job_title,
-            persona.summary.demographics.age_range
-          ].filter(Boolean).join(' • ')}
-        </p>
+      {/* Personality traits from summary if available */}
+      {persona.summary?.key_traits && (
+        <div className="flex flex-wrap gap-1">
+          {persona.summary.key_traits.slice(0, 3).map((trait, idx) => (
+            <span
+              key={idx}
+              className={`text-xs px-2 py-0.5 rounded-full ${getTraitColor(idx)}`}
+            >
+              {trait}
+            </span>
+          ))}
+        </div>
       )}
-
-      {/* Quick action */}
-      <div className="flex items-center gap-2 mt-auto pt-2 border-t border-gray-100 dark:border-gray-700">
-        <Link
-          to={`/personas/${persona.id}/chat`}
-          onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-primary-600 transition-colors"
-        >
-          <MessageSquare className="w-3 h-3" />
-          Chat
-        </Link>
-      </div>
     </Link>
   );
 
@@ -124,6 +144,40 @@ const PersonasPage = () => {
         </Link>
       </div>
 
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 dark:border-gray-700">
+        <button
+          onClick={() => setActiveTab('my')}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'my'
+              ? 'border-primary-600 text-primary-600'
+              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+        >
+          <Building2 className="w-4 h-4" />
+          My Personas
+          {personas.length > 0 && (
+            <span className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs px-2 py-0.5 rounded-full">
+              {personas.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('default')}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'default'
+              ? 'border-primary-600 text-primary-600'
+              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          Default Personas
+          {defaultPersonas.length > 0 && (
+            <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 text-xs px-2 py-0.5 rounded-full">
+              {defaultPersonas.length}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
@@ -136,42 +190,61 @@ const PersonasPage = () => {
             className="input pl-10"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <Filter className="w-5 h-5 text-gray-400" />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="input w-auto"
-          >
-            <option value="active">Active</option>
-            <option value="archived">Archived</option>
-          </select>
-        </div>
+        {activeTab === 'my' && (
+          <div className="flex items-center gap-2">
+            <Filter className="w-5 h-5 text-gray-400" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="input w-auto"
+            >
+              <option value="active">Active</option>
+              <option value="draft">Draft</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+        )}
       </div>
 
-      {/* Personas grid */}
-      {loading ? (
+      {/* Personas Grid */}
+      {currentLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
         </div>
       ) : filteredPersonas.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredPersonas.map((persona) => (
-            <PersonaCard key={persona.id} persona={persona} />
+            <PersonaCard
+              key={persona.id}
+              persona={persona}
+              isDefault={activeTab === 'default'}
+            />
           ))}
         </div>
       ) : (
         <div className="card p-12 text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-            <Users className="w-8 h-8 text-gray-400" />
+            {activeTab === 'my' ? (
+              <Users className="w-8 h-8 text-gray-400" />
+            ) : (
+              <Sparkles className="w-8 h-8 text-amber-400" />
+            )}
           </div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            {searchQuery ? 'No personas found' : 'No personas yet'}
+            {searchQuery
+              ? 'No personas found'
+              : activeTab === 'my'
+                ? 'No personas yet'
+                : 'No default personas available'
+            }
           </h3>
           <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
             {searchQuery
               ? 'Try adjusting your search terms'
-              : 'Personas will appear here once they are generated from questionnaire responses'}
+              : activeTab === 'my'
+                ? 'Personas will appear here once they are generated from questionnaire responses'
+                : 'Default personas showcase our AI capabilities'
+            }
           </p>
         </div>
       )}
