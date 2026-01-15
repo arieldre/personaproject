@@ -27,6 +27,7 @@ const usersRoutes = require('./routes/users.routes');
 const questionnairesRoutes = require('./routes/questionnaires.routes');
 const personasRoutes = require('./routes/personas.routes');
 const vcpqRoutes = require('./routes/vcpq.routes');
+const trainingRoutes = require('./routes/training.routes');
 
 // Import services
 const { initializeTransporter } = require('./services/email.service');
@@ -87,7 +88,7 @@ app.get('/health', async (req, res) => {
   try {
     // Check database
     await pool.query('SELECT 1');
-    
+
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
@@ -112,6 +113,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/questionnaires', questionnairesRoutes);
 app.use('/api/personas', personasRoutes);
 app.use('/api/vcpq', vcpqRoutes);
+app.use('/api/training', trainingRoutes);
 
 // API info endpoint
 app.get('/api', (req, res) => {

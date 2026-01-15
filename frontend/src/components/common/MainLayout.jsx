@@ -15,6 +15,7 @@ import {
   Search,
   ChevronDown,
   Sparkles,
+  GraduationCap,
 } from 'lucide-react';
 
 const MainLayout = () => {
@@ -31,6 +32,7 @@ const MainLayout = () => {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Personas', href: '/personas', icon: Users },
+    { name: 'Training', href: '/training', icon: GraduationCap },
     { name: 'Find My Persona', href: '/find-persona', icon: Search },
   ];
 

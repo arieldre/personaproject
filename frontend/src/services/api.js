@@ -123,9 +123,19 @@ export const personasAPI = {
   getConversations: (personaId) => api.get(`/personas/${personaId}/conversations`),
   createConversation: (personaId, data) => api.post(`/personas/${personaId}/conversations`, data),
   getConversation: (conversationId) => api.get(`/personas/conversations/${conversationId}`),
-  sendMessage: (conversationId, content) => api.post(`/personas/conversations/${conversationId}/messages`, { content }),
+  sendMessage: (conversationId, content, options = {}) => api.post(`/personas/conversations/${conversationId}/messages`, { content, ...options }),
   saveConversation: (conversationId, data) => api.put(`/personas/conversations/${conversationId}/save`, data),
   deleteConversation: (conversationId) => api.delete(`/personas/conversations/${conversationId}`),
+};
+
+// Training API
+export const trainingAPI = {
+  getScenarios: () => api.get('/training/scenarios'),
+  getScenario: (id) => api.get(`/training/scenarios/${id}`),
+  startSession: (data) => api.post('/training/sessions', data),
+  sendMessage: (sessionId, content) => api.post(`/training/sessions/${sessionId}/message`, { content }),
+  gradeSession: (data) => api.post('/training/grade', data),
+  getHistory: () => api.get('/training/sessions'),
 };
 
 export default api;
