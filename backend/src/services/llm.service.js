@@ -15,7 +15,7 @@ const generateVCPQSystemPrompt = (persona) => {
   const vectors = persona.personality_vectors || {};
   const vectorProfile = persona.vector_profile || {};
   const demographics = persona.demographics || {};
-  
+
   // Helper to describe vector position
   const describeVector = (value, lowDesc, highDesc) => {
     if (value > 0.5) return `strongly ${highDesc}`;
@@ -27,7 +27,7 @@ const generateVCPQSystemPrompt = (persona) => {
 
   // Build personality description from vectors
   const personalityTraits = [];
-  
+
   if (vectors.innovation !== undefined) {
     personalityTraits.push(`You are ${describeVector(vectors.innovation, 'traditional and prefer proven methods', 'innovative and enjoy exploring new ideas')}.`);
   }
@@ -78,7 +78,7 @@ const generateVCPQSystemPrompt = (persona) => {
 
   // Domain context
   const domainContext = vectorProfile.domain_context || {};
-  
+
   let prompt = `You are roleplaying as "${persona.name}", a specific individual within an organization. Your responses should authentically reflect this person's communication style, personality, and preferences.
 
 ## Your Identity
@@ -151,7 +151,7 @@ const generateSystemPrompt = (persona) => {
   if (persona.personality_vectors && Object.keys(persona.personality_vectors).length > 0) {
     return generateVCPQSystemPrompt(persona);
   }
-  
+
   // Legacy format fallback
   const summary = persona.summary || {};
   const extended_profile = persona.extended_profile || {};
@@ -349,6 +349,98 @@ const testConnection = async () => {
   }
 };
 
+/**
+ * Grade a conversation using persona-specific rubric
+ * Each persona evaluates users differently based on their character
+ */
+const gradeWithPersona = async (persona, conversation, scenario = null) => {
+  try {
+    const rubric = persona.grading_rubric || getDefaultRubric();
+    const criteria = rubric.criteria || [];
+
+    // Build grading prompt that embodies the persona's values
+    let gradingPrompt = `You are ${persona.name}, and you are evaluating how well someone communicated with you.
+
+## Your Grading Style
+${rubric.grading_style || 'Evaluate based on overall communication effectiveness.'}
+
+## What You Value
+${rubric.likes ? rubric.likes.map(l => `- ${l}`).join('\n') : '- Clear communication\n- Professional tone'}
+
+## What Puts You Off
+${rubric.dislikes ? rubric.dislikes.map(d => `- ${d}`).join('\n') : '- Unclear communication\n- Disrespectful tone'}
+
+## Grading Criteria
+Evaluate the user's messages on these criteria (weights show importance):
+${criteria.map(c => `- **${c.name}** (${c.weight}%): ${c.description}`).join('\n')}
+
+## The Conversation
+${conversation.map(m => `${m.role === 'user' ? 'THEM' : 'YOU'}: ${m.content}`).join('\n\n')}
+${scenario ? `\n## Context\nThis was a training scenario: "${scenario.title}" - ${scenario.description}` : ''}
+
+## Your Task
+Grade the user's performance as ${persona.name} would. For each criterion, provide:
+1. A score from 0-100
+2. Brief feedback in your voice (as ${persona.name})
+
+Return a JSON object with this structure:
+{
+  "overall_score": <weighted average 0-100>,
+  "criteria_scores": [
+    {"name": "<criterion>", "score": <0-100>, "feedback": "<your feedback in character>"}
+  ],
+  "overall_feedback": "<2-3 sentences summarizing performance, in your voice as ${persona.name}>",
+  "tips": ["<tip 1>", "<tip 2>"]
+}
+
+Return ONLY valid JSON, no other text.`;
+
+    const completion = await groq.chat.completions.create({
+      model: DEFAULT_MODEL,
+      messages: [{ role: 'user', content: gradingPrompt }],
+      temperature: 0.4,
+      max_tokens: 1500,
+    });
+
+    const responseText = completion.choices[0]?.message?.content || '';
+
+    // Extract JSON from response
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('Failed to parse grading results');
+    }
+
+    const result = JSON.parse(jsonMatch[0]);
+
+    // Add persona info to result
+    result.graded_by = {
+      persona_id: persona.id,
+      persona_name: persona.name,
+      grading_style: rubric.grading_style
+    };
+
+    return result;
+  } catch (error) {
+    console.error('Grading error:', error);
+    throw new Error(`Grading failed: ${error.message}`);
+  }
+};
+
+/**
+ * Default rubric for personas without a custom one
+ */
+const getDefaultRubric = () => ({
+  grading_style: 'Evaluate based on clear communication and professionalism.',
+  criteria: [
+    { name: 'Clarity', weight: 25, description: 'Were explanations clear and easy to understand?' },
+    { name: 'Empathy', weight: 25, description: 'Did they acknowledge your perspective?' },
+    { name: 'Problem-Solving', weight: 25, description: 'Did they offer helpful solutions?' },
+    { name: 'Professionalism', weight: 25, description: 'Was the tone appropriate?' }
+  ],
+  likes: ['Clear communication', 'Respectful tone', 'Helpful attitude'],
+  dislikes: ['Vague or confusing messages', 'Disrespectful behavior']
+});
+
 module.exports = {
   chatWithPersona,
   streamChatWithPersona,
@@ -356,6 +448,8 @@ module.exports = {
   generateVCPQSystemPrompt,
   findSimilarPersona,
   testConnection,
+  gradeWithPersona,
+  getDefaultRubric,
   DEFAULT_MODEL,
 };
 
