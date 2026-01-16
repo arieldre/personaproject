@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('../middleware/auth.middleware');
+const { authenticate } = require('../middleware/auth');
 const { gradeWithPersona } = require('../services/llm.service');
 const { gradeSession, formatGradingResult } = require('../services/training.service');
 const db = require('../config/database');
 
 // All routes require authentication
-router.use(authenticateToken);
+router.use(authenticate);
 
 /**
  * POST /api/training/grade
