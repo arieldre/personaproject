@@ -44,15 +44,17 @@ const TrainingSessionPage = () => {
     const fetchData = async () => {
         try {
             const personaRes = await personasAPI.get(personaId);
-            setPersona(personaRes.data.persona);
+            // API returns persona data directly, not wrapped in 'persona' key
+            const personaData = personaRes.data;
+            setPersona(personaData);
 
             // Get scenario from the hardcoded list based on ID
-            const scenarioData = getScenarioById(scenarioId, personaRes.data.persona);
+            const scenarioData = getScenarioById(scenarioId, personaData);
             setScenario(scenarioData);
 
             // Start with persona's opening message based on scenario
-            if (scenarioData) {
-                const openingMessage = generateOpeningMessage(personaRes.data.persona, scenarioData);
+            if (scenarioData && personaData) {
+                const openingMessage = generateOpeningMessage(personaData, scenarioData);
                 setMessages([{ role: 'assistant', content: openingMessage }]);
             }
         } catch (error) {
@@ -363,8 +365,8 @@ const TrainingSessionPage = () => {
                             </div>
                         )}
                         <div className={`max-w-[70%] rounded-xl px-4 py-3 ${message.role === 'user'
-                                ? 'bg-primary-600 text-white'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                            ? 'bg-primary-600 text-white'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
                             }`}>
                             {message.content}
                         </div>
