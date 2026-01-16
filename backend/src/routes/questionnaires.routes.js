@@ -193,8 +193,8 @@ router.post('/:id/responses', questionnaireLimiter, async (req, res) => {
   }
 });
 
-// Generate personas from questionnaire responses using VCPQ + Clustering
-router.post('/:id/generate-personas', async (req, res) => {
+// Preview cluster analysis before generating personas
+router.post('/:id/preview-clusters', async (req, res) => {
   try {
     const { id } = req.params;
     const { maxPersonas = 10 } = req.body;
@@ -202,7 +202,102 @@ router.post('/:id/generate-personas', async (req, res) => {
     const questionnaire = await query('SELECT * FROM questionnaires WHERE id = $1', [id]);
     if (questionnaire.rows.length === 0) return res.status(404).json({ error: 'Questionnaire not found' });
 
-    const domain = questionnaire.rows[0].domain || 'general';
+    const responses = await query(
+      `SELECT * FROM questionnaire_responses WHERE questionnaire_id = $1 AND processed = false`, [id]
+    );
+    if (responses.rows.length === 0) return res.status(400).json({ error: 'No unprocessed responses found' });
+
+    // Process responses into vectors
+    const processedResponses = [];
+    for (const response of responses.rows) {
+      try {
+        const answers = typeof response.answers === 'string' ? JSON.parse(response.answers) : response.answers;
+        const demographics = typeof response.demographics === 'string' ? JSON.parse(response.demographics) : (response.demographics || {});
+
+        const vcpqScores = {};
+        for (const key of Object.keys(answers)) {
+          if (/^[A-D][1-8]$/.test(key)) {
+            vcpqScores[key] = parseInt(answers[key]) || 3;
+          }
+        }
+
+        if (Object.keys(vcpqScores).length < 6) continue;
+
+        const vectorResult = vectorService.processVCPQResponses(vcpqScores);
+        processedResponses.push({
+          id: response.id,
+          vcpqScores,
+          demographics,
+          vectorResult
+        });
+      } catch (err) {
+        console.error('Error processing response for preview:', response.id, err.message);
+      }
+    }
+
+    if (processedResponses.length < 3) {
+      return res.status(400).json({ error: 'Need at least 3 valid responses to preview clusters' });
+    }
+
+    // Run clustering
+    const clusteringService = require('../services/clustering.service');
+    const clusters = clusteringService.clusterResponses(processedResponses, { maxPersonas });
+
+    // Build preview data with dominant traits per cluster
+    const clusterPreviews = clusters.map((cluster, index) => {
+      const centroid = cluster.centroid;
+      const dominantTraits = Object.entries(centroid)
+        .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+        .slice(0, 3)
+        .map(([key, value]) => ({
+          trait: key,
+          value: Math.round(value * 100) / 100,
+          direction: value > 0 ? 'high' : 'low'
+        }));
+
+      const aggregatedDemo = clusteringService.aggregateDemographics(cluster.members);
+
+      return {
+        cluster_id: index,
+        size: cluster.size,
+        percentage: Math.round((cluster.size / processedResponses.length) * 100),
+        dominant_traits: dominantTraits,
+        centroid_summary: dominantTraits.map(t => `${t.direction === 'high' ? '↑' : '↓'} ${t.trait}`).join(', '),
+        demographic_snapshot: {
+          common_role: aggregatedDemo.role || aggregatedDemo.job_title || 'Various',
+          common_department: aggregatedDemo.department || 'Mixed'
+        },
+        cohesion_score: cluster.avgDistance ? Math.round((1 - cluster.avgDistance / 2) * 100) / 100 : null
+      };
+    });
+
+    res.json({
+      total_responses: processedResponses.length,
+      suggested_clusters: clusters.length,
+      clusters: clusterPreviews,
+      recommendation: processedResponses.length < 10
+        ? 'Consider collecting more responses for higher-fidelity personas'
+        : processedResponses.length > 50
+          ? 'Large dataset - consider increasing max personas for granularity'
+          : 'Good response count for persona generation'
+    });
+  } catch (error) {
+    console.error('Error previewing clusters:', error);
+    res.status(500).json({ error: 'Failed to preview clusters: ' + error.message });
+  }
+});
+
+// Generate personas from questionnaire responses using VCPQ + Clustering
+router.post('/:id/generate-personas', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { id } = req.params;
+    const { maxPersonas = 10, domain: requestDomain, generateInsights = true } = req.body;
+
+    const questionnaire = await query('SELECT * FROM questionnaires WHERE id = $1', [id]);
+    if (questionnaire.rows.length === 0) return res.status(404).json({ error: 'Questionnaire not found' });
+
+    const domain = requestDomain || questionnaire.rows[0].domain || 'general';
     const companyId = questionnaire.rows[0].company_id;
 
     const responses = await query(
@@ -219,7 +314,6 @@ router.post('/:id/generate-personas', async (req, res) => {
         const answers = typeof response.answers === 'string' ? JSON.parse(response.answers) : response.answers;
         const demographics = typeof response.demographics === 'string' ? JSON.parse(response.demographics) : (response.demographics || {});
 
-        // Extract VCPQ scores (A1-D6)
         const vcpqScores = {};
         for (const key of Object.keys(answers)) {
           if (/^[A-D][1-8]$/.test(key)) {
@@ -254,14 +348,13 @@ router.post('/:id/generate-personas', async (req, res) => {
 
     console.log(`[Clustering] Created ${clusters.length} clusters from ${processedResponses.length} responses`);
 
-    // Step 3: Generate one persona per cluster
+    // Step 3: Generate one persona per cluster with extended insights
     const generatedPersonas = [];
+    const perPersonaStats = [];
+
     for (const cluster of clusters) {
       try {
-        // Use centroid as the representative meta-vectors
         const centroidVectors = cluster.centroid;
-
-        // Aggregate demographics from cluster members
         const aggregatedDemo = clusteringService.aggregateDemographics(cluster.members);
 
         // Average the VCPQ scores from cluster members
@@ -275,7 +368,18 @@ router.post('/:id/generate-personas', async (req, res) => {
         // Generate persona using averaged scores
         const vcpqResult = await vcpqService.generateVCPQPersona(avgScores, aggregatedDemo, domain);
 
-        // Build summary
+        // Generate extended insights if requested
+        let insights = null;
+        if (generateInsights) {
+          insights = await vcpqService.generatePersonaInsights(centroidVectors, aggregatedDemo, domain);
+        }
+
+        // Find vector extremes
+        const vectorEntries = Object.entries(centroidVectors);
+        const highest = vectorEntries.reduce((a, b) => b[1] > a[1] ? b : a);
+        const lowest = vectorEntries.reduce((a, b) => b[1] < a[1] ? b : a);
+
+        // Build summary with insights
         const summary = {
           demographics: vcpqResult.demographics || aggregatedDemo,
           communication_style: {
@@ -289,7 +393,13 @@ router.post('/:id/generate-personas', async (req, res) => {
           cluster_info: {
             size: cluster.size,
             member_ids: cluster.members.map(m => m.id)
-          }
+          },
+          // New: Extended insights
+          strengths: insights?.strengths || [],
+          areas_for_growth: insights?.areas_for_growth || [],
+          learning_style: insights?.learning_style || null,
+          work_style: insights?.work_style || null,
+          compatibility: insights?.compatibility || null
         };
 
         const extendedProfile = {
@@ -302,19 +412,25 @@ router.post('/:id/generate-personas', async (req, res) => {
             centroid_vectors: centroidVectors,
             avg_scores: avgScores,
             applied_rules: vcpqResult.applied_rules
-          }
+          },
+          // New: Insights metadata
+          insights_generated: insights !== null,
+          insights_source: insights?.generated_by || null
         };
 
         const role = aggregatedDemo.role || aggregatedDemo.job_title || 'Team Member';
         const dept = aggregatedDemo.department || 'General';
         const tagline = `${role} - ${dept} (${cluster.size} similar responses)`;
 
+        // Calculate cluster cohesion
+        const cohesion = cluster.avgDistance ? Math.round((1 - cluster.avgDistance / 2) * 100) / 100 : 0.85;
+
         const personaResult = await query(
           `INSERT INTO personas
            (company_id, questionnaire_id, name, tagline, status, summary, extended_profile, 
             system_prompt, personality_vectors, raw_survey_scores, domain_context, 
-            cluster_size, generated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+            cluster_size, confidence_score, generated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
            RETURNING *`,
           [
             companyId,
@@ -328,11 +444,21 @@ router.post('/:id/generate-personas', async (req, res) => {
             JSON.stringify(centroidVectors),
             JSON.stringify(avgScores),
             domain,
-            cluster.size
+            cluster.size,
+            cohesion
           ]
         );
 
         generatedPersonas.push(personaResult.rows[0]);
+
+        // Track per-persona stats
+        perPersonaStats.push({
+          name: vcpqResult.name,
+          cluster_size: cluster.size,
+          cluster_cohesion: cohesion,
+          vector_extremes: { highest: highest[0], lowest: lowest[0] },
+          insights_generated: insights ? Object.keys(insights).length : 0
+        });
 
         // Mark all cluster members as processed
         for (const member of cluster.members) {
@@ -345,14 +471,19 @@ router.post('/:id/generate-personas', async (req, res) => {
       }
     }
 
+    const processingTime = Date.now() - startTime;
+
     res.json({
       success: true,
       message: `Generated ${generatedPersonas.length} personas from ${processedResponses.length} responses using clustering`,
       personas: generatedPersonas,
-      clustering: {
-        total_responses: processedResponses.length,
-        clusters_created: clusters.length,
-        cluster_sizes: clusters.map(c => c.size)
+      generation_stats: {
+        total_responses_processed: processedResponses.length,
+        clusters_formed: clusters.length,
+        processing_time_ms: processingTime,
+        domain_used: domain,
+        insights_enabled: generateInsights,
+        per_persona_stats: perPersonaStats
       }
     });
   } catch (error) {

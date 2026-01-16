@@ -114,8 +114,28 @@ const PersonaDetailPage = () => {
     return { ...info, value, normalizedValue };
   };
 
-  // Extract personality insights from vectors
+  // Extract personality insights - prioritize pre-generated insights from backend
   const getPersonalityInsights = () => {
+    // Check for pre-generated insights from backend (LLM-generated)
+    if (summary.strengths || summary.areas_for_growth || summary.learning_style || summary.work_style) {
+      return {
+        strengths: summary.strengths || [],
+        challenges: summary.areas_for_growth || [],
+        areasForGrowth: summary.areas_for_growth || [],
+        communicationStyle: summary.work_style?.feedback_preference
+          ? [summary.work_style.feedback_preference, summary.work_style.collaboration]
+          : [],
+        learningStyle: summary.learning_style?.preferences || [],
+        learningType: summary.learning_style?.type || null,
+        learningRecommendations: summary.learning_style?.recommendations || [],
+        workStyle: summary.work_style || null,
+        compatibility: summary.compatibility || null,
+        motivations: summary.motivations || [],
+        generatedByLLM: true
+      };
+    }
+
+    // Fallback: derive insights from vectors if backend didn't generate them
     if (!vectors || Object.keys(vectors).length === 0) return null;
 
     const strengths = [];
@@ -194,9 +214,11 @@ const PersonaDetailPage = () => {
     return {
       strengths: strengths.length > 0 ? strengths : ['Adaptable', 'Well-rounded'],
       challenges: challenges.length > 0 ? challenges : ['Balance between different approaches'],
+      areasForGrowth: challenges.length > 0 ? challenges : ['Continuous improvement'],
       communicationStyle: communicationStyle.length > 0 ? communicationStyle : ['Balanced communication'],
       learningStyle: learningStyle.length > 0 ? learningStyle : ['Flexible learning approach'],
       motivations: motivations.length > 0 ? motivations : ['Personal growth', 'Making an impact'],
+      generatedByLLM: false
     };
   };
 
@@ -384,8 +406,8 @@ const PersonaDetailPage = () => {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === tab.id
-                  ? 'bg-white dark:bg-gray-700 text-primary-600 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                ? 'bg-white dark:bg-gray-700 text-primary-600 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
             >
               <tab.icon className="w-4 h-4" />

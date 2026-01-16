@@ -106,6 +106,7 @@ export const questionnairesAPI = {
   getByAccessCode: (code) => api.get(`/questionnaires/access/${code}`),
   submitResponse: (id, data) => api.post(`/questionnaires/${id}/responses`, data),
   getResponses: (id, params) => api.get(`/questionnaires/${id}/responses`, { params }),
+  previewClusters: (id, data) => api.post(`/questionnaires/${id}/preview-clusters`, data),
   generatePersonas: (id, data) => api.post(`/questionnaires/${id}/generate-personas`, data),
   deletePersonas: (id) => api.delete(`/questionnaires/${id}/personas`),
 };
