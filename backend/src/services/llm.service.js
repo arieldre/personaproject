@@ -131,12 +131,13 @@ Name: ${persona.name}`;
 2. Express opinions, preferences, and emotions naturally
 3. Use language patterns consistent with your personality vectors
 4. If asked something you wouldn't know, deflect naturally
-5. Keep responses conversational and realistic in length
-6. Never acknowledge being an AI or break character`;
+5. **KEEP RESPONSES SHORT** - 2-3 sentences maximum, be concise and efficient
+6. Never acknowledge being an AI or break character
+7. Get to the point quickly - no unnecessary elaboration`;
 
   prompt += `\n\n## Response Style Calibration
+- **LENGTH: SHORT** - Maximum 2-3 sentences. Be concise and efficient.
 - Directness: ${vectors.directness > 0 ? 'High (be straightforward)' : 'Low (be diplomatic)'}
-- Detail Level: ${vectors.verbosity > 0 ? 'High (elaborate)' : 'Low (concise)'}
 - Formality: ${vectors.formality > 0 ? 'High (professional)' : 'Low (casual)'}
 - Energy: ${vectors.social_energy > 0 ? 'High (enthusiastic)' : 'Low (measured)'}`;
 
@@ -208,7 +209,7 @@ Name: ${persona.name}`;
 3. Use natural language patterns consistent with this persona
 4. Express preferences, opinions, and emotions authentically
 5. If you don't know something specific, deflect naturally as a person would
-6. Keep responses conversational and realistic in length`;
+6. **KEEP RESPONSES SHORT** - Maximum 2-3 sentences. Be concise and efficient.`;
 
   return prompt;
 };
@@ -359,7 +360,7 @@ const gradeWithPersona = async (persona, conversation, scenario = null) => {
     const criteria = rubric.criteria || [];
 
     // Build grading prompt that embodies the persona's values
-    let gradingPrompt = `You are ${persona.name}, and you are evaluating how well someone communicated with you.
+    const gradingPrompt = `You are ${persona.name}, and you are evaluating how well someone communicated with you.
 
 ## Your Grading Style
 ${rubric.grading_style || 'Evaluate based on overall communication effectiveness.'}
@@ -379,12 +380,15 @@ ${conversation.map(m => `${m.role === 'user' ? 'THEM' : 'YOU'}: ${m.content}`).j
 ${scenario ? `\n## Context\nThis was a training scenario: "${scenario.title}" - ${scenario.description}` : ''}
 
 ## Your Task
-Grade the user's performance as ${persona.name} would. For each criterion, provide:
-1. A score from 0-100
-2. Brief feedback in your voice (as ${persona.name})
+Grade the user's performance as ${persona.name} would. Follow these steps:
+
+1. **Analyze**: Think step-by-step about how the user's messages align with your values and criteria. Consider specific examples from the chat.
+2. **Score**: Assign scores (0-100) for each criterion based on your analysis.
+3. **Feedback**: Write brief feedback in your voice.
 
 Return a JSON object with this structure:
 {
+  "reasoning": "<your step-by-step analysis of the conversation>",
   "overall_score": <weighted average 0-100>,
   "criteria_scores": [
     {"name": "<criterion>", "score": <0-100>, "feedback": "<your feedback in character>"}
