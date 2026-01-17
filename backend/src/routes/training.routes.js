@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
-const { gradeWithPersona } = require('../services/llm.service');
-const { gradeSession, formatGradingResult } = require('../services/training.service');
+const { gradeWithMultiPass } = require('../services/llm.service');
+const { saveTrainingSession, getScenarioProgress, calculateImprovement } = require('../services/progress.service');
 const db = require('../config/database');
 
 // All routes require authentication
@@ -10,7 +10,7 @@ router.use(authenticate);
 
 /**
  * POST /api/training/grade
- * Grade a training session using persona-specific rubric
+ * Grade a training session using multi-pass grading and track progress
  */
 router.post('/grade', async (req, res) => {
     try {
@@ -44,15 +44,93 @@ router.post('/grade', async (req, res) => {
             content: m.content
         }));
 
-        // Grade using persona-specific rubric
-        const gradingResult = await gradeWithPersona(persona, conversation, { scenarioId });
+        // Use multi-pass grading for improved accuracy
+        const gradingResult = await gradeWithMultiPass(persona, conversation, { scenarioId });
 
-        res.json(gradingResult);
+        // Get progress before saving new session
+        const previousProgress = await getScenarioProgress(req.user.id, scenarioId);
+
+        // Save training session for progress tracking
+        await saveTrainingSession({
+            userId: req.user.id,
+            personaId,
+            scenarioId,
+            messages: conversation,
+            gradeResult: gradingResult
+        });
+
+        // Calculate improvement metrics
+        const improvement = calculateImprovement(gradingResult.overall_score, previousProgress);
+
+        // Add progress metrics to response
+        const response = {
+            ...gradingResult,
+            progress: {
+                attempts: previousProgress.attempts + 1,
+                previousBest: previousProgress.bestScore,
+                ...improvement
+            }
+        };
+
+        res.json(response);
     } catch (error) {
         console.error('Training grade error:', error);
         res.status(500).json({
             error: 'Internal Server Error',
             message: 'Failed to grade training session'
+        });
+    }
+});
+
+/**
+ * POST /api/training/chat
+ * Send a message in a training scenario and get LLM response
+ */
+router.post('/chat', async (req, res) => {
+    try {
+        const { personaId, messages, scenario } = req.body;
+
+        if (!personaId || !messages || !scenario) {
+            return res.status(400).json({
+                error: 'Bad Request',
+                message: 'personaId, messages, and scenario are required'
+            });
+        }
+
+        // Get persona
+        const personaResult = await db.query(
+            'SELECT * FROM personas WHERE id = $1',
+            [personaId]
+        );
+
+        if (personaResult.rows.length === 0) {
+            return res.status(404).json({
+                error: 'Not Found',
+                message: 'Persona not found'
+            });
+        }
+
+        const persona = personaResult.rows[0];
+
+        // Format conversation history
+        const conversation = messages.map(m => ({
+            role: m.role,
+            content: m.content
+        }));
+
+        // Generate response with scenario context
+        const { chatWithPersona } = require('../services/llm.service');
+        const response = await chatWithPersona(persona, conversation, { scenario });
+
+        res.json({
+            message: response.content,
+            tokens: response.tokens
+        });
+    } catch (error) {
+        console.error('Training chat error:', error);
+        res.status(500).json({
+            error: 'Internal Server Error',
+            message: 'Failed to generate response'
         });
     }
 });

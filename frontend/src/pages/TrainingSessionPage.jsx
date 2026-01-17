@@ -114,20 +114,24 @@ const TrainingSessionPage = () => {
         setSending(true);
 
         try {
-            // Use the chat endpoint with training context
-            const response = await personasAPI.sendMessage(
+            // Use the new training chat endpoint with dynamic LLM responses
+            const response = await trainingAPI.chat({
                 personaId,
-                input.trim(),
-                { isTraining: true, scenario: scenario?.context }
-            );
+                messages: [...messages, userMessage],
+                scenario: {
+                    title: scenario.title,
+                    description: scenario.description,
+                    context: scenario.context,
+                    difficulty: scenario.difficulty
+                }
+            });
 
             if (response.data?.message) {
                 setMessages(prev => [...prev, { role: 'assistant', content: response.data.message }]);
             }
         } catch (error) {
-            // If API fails, generate a mock response for demo
-            const mockResponse = generateMockResponse(persona, messages.length);
-            setMessages(prev => [...prev, { role: 'assistant', content: mockResponse }]);
+            console.error('Training chat error:', error);
+            toast.error('Failed to get response. Please try again.');
         } finally {
             setSending(false);
         }
@@ -257,6 +261,70 @@ const TrainingSessionPage = () => {
                         <h3 className="font-medium text-gray-900 dark:text-white mb-2">Grading Style</h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400">{gradingResult.graded_by?.grading_style}</p>
                     </div>
+
+                    {/* Chain of Thought Reasoning */}
+                    {gradingResult.reasoning && (
+                        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-6 border border-blue-200 dark:border-blue-800">
+                            <h3 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                                <span className="text-blue-600">💭</span>
+                                {gradingResult.graded_by?.persona_name}'s Analysis
+                            </h3>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{gradingResult.reasoning}</p>
+                        </div>
+                    )}
+
+                    {/* Progress & Stats */}
+                    {gradingResult.progress && (
+                        <div className="grid grid-cols-3 gap-4 mb-6">
+                            <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg p-4 border border-purple-200 dark:border-purple-700">
+                                <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">Attempt</p>
+                                <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">#{gradingResult.progress.attempts}</p>
+                            </div>
+                            {gradingResult.progress.previousBest && (
+                                <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-700">
+                                    <p className="text-xs text-yellow-600 dark:text-yellow-400 mb-1">Previous Best</p>
+                                    <p className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">{gradingResult.progress.previousBest}</p>
+                                </div>
+                            )}
+                            {gradingResult.progress.improvement !== undefined && !gradingResult.progress.isFirstAttempt && (
+                                <div className={`bg-gradient-to-br rounded-lg p-4 border ${gradingResult.progress.isImprovement ? 'from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-700' : 'from-gray-50 to-gray-100 dark:from-gray-800/20 dark:to-gray-700/20 border-gray-200 dark:border-gray-700'}`}>
+                                    <p className={`text-xs mb-1 ${gradingResult.progress.isImprovement ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                                        {gradingResult.progress.isImprovement ? '📈 Improved' : 'Change'}
+                                    </p>
+                                    <p className={`text-2xl font-bold ${gradingResult.progress.isImprovement ? 'text-green-900 dark:text-green-100' : 'text-gray-900 dark:text-gray-100'}`}>
+                                        {gradingResult.progress.improvement > 0 ? '+' : ''}{gradingResult.progress.improvement}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Multi-Pass Grading Stats */}
+                    {gradingResult.multiPass && (
+                        <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4 mb-6 border border-indigo-200 dark:border-indigo-800">
+                            <h3 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                <span className="text-indigo-600">🎯</span>
+                                Multi-Pass Grading
+                            </h3>
+                            <div className="grid grid-cols-3 gap-3 text-sm">
+                                <div>
+                                    <p className="text-gray-600 dark:text-gray-400">Strict Score</p>
+                                    <p className="text-lg font-semibold text-gray-900 dark:text-white">{gradingResult.multiPass.strictScore}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-600 dark:text-gray-400">Balanced Score</p>
+                                    <p className="text-lg font-semibold text-gray-900 dark:text-white">{gradingResult.multiPass.balancedScore}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-600 dark:text-gray-400">Variance</p>
+                                    <p className="text-lg font-semibold text-gray-900 dark:text-white">±{gradingResult.multiPass.variance}</p>
+                                </div>
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                Your final score is averaged from two grading passes for improved accuracy
+                            </p>
+                        </div>
+                    )}
 
                     {/* Criteria Scores */}
                     <div className="space-y-4 mb-6">

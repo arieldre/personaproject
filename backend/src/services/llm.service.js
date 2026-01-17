@@ -219,7 +219,33 @@ Name: ${persona.name}`;
  */
 const chatWithPersona = async (persona, messages, options = {}) => {
   try {
-    const systemPrompt = persona.system_prompt || generateSystemPrompt(persona);
+    let systemPrompt = persona.system_prompt || generateSystemPrompt(persona);
+
+    // Inject scenario context if provided
+    if (options.scenario) {
+      const { title, description, context, difficulty } = options.scenario;
+
+      // Difficulty-based behavioral instructions
+      const difficultyInstructions = {
+        easy: 'Be receptive to reasonable solutions. If the user shows good communication and addresses the core issue, acknowledge their effort and naturally wrap up the conversation.',
+        medium: 'Require thoughtful solutions. The user needs to show empathy and understanding of your perspective before you fully accept their approach.',
+        hard: 'Be challenging but fair. The user must demonstrate excellent communication skills, empathy, and provide well-reasoned solutions before you consider the issue resolved.'
+      };
+
+      const behaviorInstruction = difficultyInstructions[difficulty] || difficultyInstructions.medium;
+
+      systemPrompt += `\n\n## CURRENT TRAINING SCENARIO
+**Scenario:** ${title}
+**Situation:** ${description || context}
+
+### Your Role in This Scenario
+- Stay focused on this specific issue throughout the conversation
+- Respond authentically as this persona would in this situation
+- ${behaviorInstruction}
+- If the issue is genuinely resolved, acknowledge it and indicate the conversation can end naturally
+
+IMPORTANT: Do not break character. Do not mention that this is a training scenario. Stay in the moment of this situation.`;
+    }
 
     const completion = await groq.chat.completions.create({
       model: options.model || DEFAULT_MODEL,
@@ -354,7 +380,7 @@ const testConnection = async () => {
  * Grade a conversation using persona-specific rubric
  * Each persona evaluates users differently based on their character
  */
-const gradeWithPersona = async (persona, conversation, scenario = null) => {
+const gradeWithPersona = async (persona, conversation, scenario = null, options = {}) => {
   try {
     const rubric = persona.grading_rubric || getDefaultRubric();
     const criteria = rubric.criteria || [];
@@ -379,16 +405,70 @@ ${criteria.map(c => `- **${c.name}** (${c.weight}%): ${c.description}`).join('\n
 ${conversation.map(m => `${m.role === 'user' ? 'THEM' : 'YOU'}: ${m.content}`).join('\n\n')}
 ${scenario ? `\n## Context\nThis was a training scenario: "${scenario.title}" - ${scenario.description}` : ''}
 
+## Resolution Check (CRITICAL)
+Before scoring, honestly assess:
+1. Did the user address the core issue of this scenario?
+2. As ${persona.name}, do you feel the situation was resolved or significantly improved?
+3. Would you consider this conversation successful from your perspective?
+
+**If YES to all three:**
+- Base score should be 70+ (met expectations)
+- Add points for good communication: 80-90+
+- Exceptional handling: 90-100
+
+**If NO:**
+- Base score 50-69 depending on partial progress
+- Below 50 only if no meaningful progress or very poor communication
+
+## Scoring Calibration
+Use these examples to calibrate your scores:
+
+**90-100 (Excellent):**
+- Issue fully resolved to your satisfaction
+- Outstanding communication (empathetic, clear, professional)
+- You feel respected and heard
+- Would eagerly work with them again
+
+**80-89 (Very Good):**
+- Issue resolved or very close to resolution
+- Good communication with minor room for improvement
+- You feel mostly satisfied
+- Positive interaction overall
+
+**70-79 (Good/Acceptable):**
+- Issue resolved but communication could be better
+- OR: Great communication but issue only partially resolved
+- You're okay with the outcome
+- Met basic expectations
+
+**60-69 (Below Expectations):**
+- Partial progress on issue
+- Communication lacking in key areas
+- You're somewhat dissatisfied
+- Needs improvement
+
+**50-59 (Poor):**
+- Minimal progress or no resolution
+- Communication issues (unclear, dismissive, etc.)
+- You feel frustrated or unheard
+
+**Below 50 (Very Poor):**
+- No meaningful progress
+- Disrespectful or very poor communication
+- Conversation was counterproductive
+
 ## Your Task
 Grade the user's performance as ${persona.name} would. Follow these steps:
 
-1. **Analyze**: Think step-by-step about how the user's messages align with your values and criteria. Consider specific examples from the chat.
-2. **Score**: Assign scores (0-100) for each criterion based on your analysis.
-3. **Feedback**: Write brief feedback in your voice.
+1. **Resolution Check**: Answer the 3 questions above honestly
+2. **Analyze**: Think step-by-step about how the user's messages align with your values and criteria
+3. **Calibrate**: Use the scoring guide to determine appropriate score range
+4. **Score**: Assign scores (0-100) for each criterion based on your analysis
+5. **Feedback**: Write brief feedback in your voice
 
 Return a JSON object with this structure:
 {
-  "reasoning": "<your step-by-step analysis of the conversation>",
+  "reasoning": "<your step-by-step analysis: (1) Was issue resolved? (2) How well did they communicate? (3) What score range is appropriate?>",
   "overall_score": <weighted average 0-100>,
   "criteria_scores": [
     {"name": "<criterion>", "score": <0-100>, "feedback": "<your feedback in character>"}
@@ -402,7 +482,7 @@ Return ONLY valid JSON, no other text.`;
     const completion = await groq.chat.completions.create({
       model: DEFAULT_MODEL,
       messages: [{ role: 'user', content: gradingPrompt }],
-      temperature: 0.4,
+      temperature: options.temperature || 0.4,
       max_tokens: 1500,
     });
 
@@ -445,6 +525,89 @@ const getDefaultRubric = () => ({
   dislikes: ['Vague or confusing messages', 'Disrespectful behavior']
 });
 
+/**
+ * Analyze conversation arc - evaluate how the conversation evolved
+ */
+const analyzeConversationArc = (conversation) => {
+  const userMessages = conversation.filter(m => m.role === 'user');
+
+  if (userMessages.length === 0) {
+    return null;
+  }
+
+  // Split into phases
+  const opening = userMessages.slice(0, 2);
+  const middle = userMessages.slice(2, -1);
+  const closing = userMessages.slice(-1);
+
+  return {
+    totalTurns: userMessages.length,
+    phases: {
+      opening: opening.map(m => m.content),
+      middle: middle.map(m => m.content),
+      closing: closing.map(m => m.content)
+    },
+    conversationLength: conversation.length
+  };
+};
+
+/**
+ * Grade with multi-pass for consistency
+ * Grades twice with different temperatures and averages the results
+ */
+const gradeWithMultiPass = async (persona, conversation, scenario = null) => {
+  try {
+    // Analyze conversation arc
+    const arcAnalysis = analyzeConversationArc(conversation);
+
+    // Pass 1: Strict/Conservative (lower temperature)
+    const pass1Options = { temperature: 0.3 };
+    const strictGrade = await gradeWithPersona(persona, conversation, scenario, pass1Options);
+
+    // Pass 2: Balanced (moderate temperature)
+    const pass2Options = { temperature: 0.6 };
+    const balancedGrade = await gradeWithPersona(persona, conversation, scenario, pass2Options);
+
+    // Average the overall scores
+    const avgOverallScore = Math.round((strictGrade.overall_score + balancedGrade.overall_score) / 2);
+
+    // Average each criterion score
+    const avgCriteriaScores = strictGrade.criteria_scores.map((criterion, i) => {
+      const balancedScore = balancedGrade.criteria_scores[i]?.score || criterion.score;
+      return {
+        name: criterion.name,
+        score: Math.round((criterion.score + balancedScore) / 2),
+        feedback: criterion.feedback // Use first pass feedback (more conservative)
+      };
+    });
+
+    // Combine insights from both passes
+    const combinedReasoning = `### Conservative Analysis (Pass 1):\n${strictGrade.reasoning}\n\n### Balanced Analysis (Pass 2):\n${balancedGrade.reasoning}`;
+
+    // Conversation arc insights
+    const arcInsights = arcAnalysis ? `\n\n### Conversation Arc:\nThe conversation had ${arcAnalysis.totalTurns} turns from the user${arcAnalysis.totalTurns < 3 ? ' (relatively brief)' : arcAnalysis.totalTurns > 5 ? ' (thorough discussion)' : ''}.` : '';
+
+    return {
+      overall_score: avgOverallScore,
+      criteria_scores: avgCriteriaScores,
+      reasoning: combinedReasoning + arcInsights,
+      overall_feedback: strictGrade.overall_feedback,
+      tips: [...new Set([...strictGrade.tips, ...balancedGrade.tips])].slice(0, 3), // Combine unique tips, max 3
+      graded_by: strictGrade.graded_by,
+      multiPass: {
+        strictScore: strictGrade.overall_score,
+        balancedScore: balancedGrade.overall_score,
+        variance: Math.abs(strictGrade.overall_score - balancedGrade.overall_score)
+      },
+      conversationArc: arcAnalysis
+    };
+  } catch (error) {
+    console.error('Multi-pass grading error:', error);
+    // Fallback to single-pass grading
+    return gradeWithPersona(persona, conversation, scenario);
+  }
+};
+
 module.exports = {
   chatWithPersona,
   streamChatWithPersona,
@@ -453,6 +616,7 @@ module.exports = {
   findSimilarPersona,
   testConnection,
   gradeWithPersona,
+  gradeWithMultiPass,
   getDefaultRubric,
   DEFAULT_MODEL,
 };

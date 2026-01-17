@@ -135,6 +135,7 @@ export const trainingAPI = {
   getScenario: (id) => api.get(`/training/scenarios/${id}`),
   startSession: (data) => api.post('/training/sessions', data),
   sendMessage: (sessionId, content) => api.post(`/training/sessions/${sessionId}/message`, { content }),
+  chat: (data) => api.post('/training/chat', data),
   gradeSession: (data) => api.post('/training/grade', data),
   getHistory: () => api.get('/training/sessions'),
 };
