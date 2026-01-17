@@ -405,75 +405,54 @@ ${criteria.map(c => `- **${c.name}** (${c.weight}%): ${c.description}`).join('\n
 ${conversation.map(m => `${m.role === 'user' ? 'THEM' : 'YOU'}: ${m.content}`).join('\n\n')}
 ${scenario ? `\n## Context\nThis was a training scenario: "${scenario.title}" - ${scenario.description}` : ''}
 
-## Resolution Check (CRITICAL)
-Before scoring, honestly assess:
-1. Did the user address the core issue of this scenario?
-2. As ${persona.name}, do you feel the situation was resolved or significantly improved?
-3. Would you consider this conversation successful from your perspective?
+## RESOLUTION-FIRST GRADING (MANDATORY)
 
-**If YES to all three:**
-- Base score should be 70+ (met expectations)
-- Add points for good communication: 80-90+
-- Exceptional handling: 90-100
+**STEP 1: Determine if issue was resolved (YES/NO)**
+1. Did they address the core problem?
+2. Do you feel the situation is fixed or significantly improved?  
+3. Would you consider this successful?
 
-**If NO:**
-- Base score 50-69 depending on partial progress
-- Below 50 only if no meaningful progress or very poor communication
+**STEP 2: Apply BASE SCORE based on resolution**
 
-## Scoring Calibration
-Use these examples to calibrate your scores:
+If YES (Issue RESOLVED):
+→ Base Score = 75 (minimum)
+→ Excellent communication: Add +15-25 (final: 90-100)
+→ Good communication: Add +5-15 (final: 80-90)
+→ Poor/curt communication: Add 0-5 (final: 75-80)
 
-**90-100 (Excellent):**
-- Issue fully resolved to your satisfaction
-- Outstanding communication (empathetic, clear, professional)
-- You feel respected and heard
-- Would eagerly work with them again
+If PARTIAL (Some progress):
+→ Base Score = 60
+→ Adjust ±10 for communication (final: 50-70)
 
-**80-89 (Very Good):**
-- Issue resolved or very close to resolution
-- Good communication with minor room for improvement
-- You feel mostly satisfied
-- Positive interaction overall
+If NO (Nothing resolved):
+→ Base Score = 40
+→ Good communication: Add +10-15 (final: 50-55)
+→ Poor communication: Add 0-5 (final: 40-45)
 
-**70-79 (Good/Acceptable):**
-- Issue resolved but communication could be better
-- OR: Great communication but issue only partially resolved
-- You're okay with the outcome
-- Met basic expectations
+**CONCRETE EXAMPLES - FOLLOW THESE:**
 
-**60-69 (Below Expectations):**
-- Partial progress on issue
-- Communication lacking in key areas
-- You're somewhat dissatisfied
-- Needs improvement
+Example 1: "Fine, do async updates" + Issue resolved = 75 (resolution matters, tone doesn't)
+Example 2: "I understand, let's find a solution together" + Nothing resolved = 50-55 (nice but no action)
+Example 3: "Let's discuss next week" + Nothing concrete = 50-60 (partial, just a promise)
+Example 4: "Great idea! I'll do async updates" + Resolved = 90 (resolution + great tone)
 
-**50-59 (Poor):**
-- Minimal progress or no resolution
-- Communication issues (unclear, dismissive, etc.)
-- You feel frustrated or unheard
-
-**Below 50 (Very Poor):**
-- No meaningful progress
-- Disrespectful or very poor communication
-- Conversation was counterproductive
+**YOUR SCORING MUST FOLLOW THESE RULES. DO NOT DEVIATE.**
 
 ## Your Task
-Grade the user's performance as ${persona.name} would. Follow these steps:
 
-1. **Resolution Check**: Answer the 3 questions above honestly
-2. **Analyze**: Think step-by-step about how the user's messages align with your values and criteria
-3. **Calibrate**: Use the scoring guide to determine appropriate score range
-4. **Score**: Assign scores (0-100) for each criterion based on your analysis
-5. **Feedback**: Write brief feedback in your voice
+1. **Resolution Check**: Answer YES, PARTIAL, or NO
+2. **Set Base Score**: Use the table above (75 if YES, 60 if PARTIAL, 40 if NO)
+3. **Adjust for Communication**: Add/subtract max 10-15 points
+4. **Final Score**: Base + Adjustment = Overall Score
 
-Return a JSON object with this structure:
+Return a JSON object:
 {
-  "reasoning": "<your step-by-step analysis: (1) Was issue resolved? (2) How well did they communicate? (3) What score range is appropriate?>",
-  "overall_score": <weighted average 0-100>,
+  "reasoning": "RESOLUTION: [YES/PARTIAL/NO]. Base score: [75/60/40]. Communication: [excellent/good/poor]. Adjustment: [+/-X]. Final: [Score]",
+  "overall_score": <0-100>,
   "criteria_scores": [
-    {"name": "<criterion>", "score": <0-100>, "feedback": "<your feedback in character>"}
+    {"name": "<criterion>", "score": <0-100>, "feedback": "<feedback>"}
   ],
-  "overall_feedback": "<2-3 sentences summarizing performance, in your voice as ${persona.name}>",
+  "overall_feedback": "<2-3 sentences in your voice as ${persona.name}>",
   "tips": ["<tip 1>", "<tip 2>"]
 }
 
