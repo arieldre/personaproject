@@ -148,7 +148,7 @@ export default async function DashboardPage() {
           </Link>
 
           <Link
-            href="/admin/personas"
+            href="/personas"
             className="rounded-xl border border-neutral-800 bg-neutral-900 hover:bg-neutral-800 transition-colors px-6 py-5 group"
           >
             <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Chat</p>

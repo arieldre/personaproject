@@ -27,6 +27,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Link href="/dashboard" className="text-sm text-neutral-400 hover:text-white transition-colors">
               Dashboard
             </Link>
+            <Link href="/personas" className="text-sm text-neutral-400 hover:text-white transition-colors">
+              Personas
+            </Link>
             <Link href="/match" className="text-sm text-neutral-400 hover:text-white transition-colors">
               Match
             </Link>
@@ -35,7 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </Link>
             {(u.role === 'company_admin' || u.role === 'super_admin') && (
               <Link href="/admin/personas" className="text-sm text-neutral-400 hover:text-white transition-colors">
-                Personas
+                Admin
               </Link>
             )}
           </div>
