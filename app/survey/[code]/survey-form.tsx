@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { QUESTIONS, QUESTIONS_BY_MODULE, MODULE_LABELS, LIKERT_LABELS } from '@/lib/vcpq/questions'
+import { QUESTIONS, QUESTIONS_BY_MODULE, MODULE_LABELS, LIKERT_LABELS, DEMOGRAPHIC_QUESTIONS } from '@/lib/vcpq/questions'
 import type { Module, QuestionId } from '@/lib/vcpq/questions'
 import { submitSurvey } from './actions'
 
@@ -16,6 +16,7 @@ interface SurveyFormProps {
 
 export function SurveyForm({ questionnaireId, anonymous, domainContext }: SurveyFormProps) {
   const [answers, setAnswers] = useState<Partial<Record<QuestionId, number>>>({})
+  const [demographics, setDemographics] = useState<Record<string, string>>({})
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [submitted, setSubmitted] = useState(false)
@@ -39,7 +40,8 @@ export function SurveyForm({ questionnaireId, anonymous, domainContext }: Survey
       const result = await submitSurvey(
         questionnaireId,
         answers as Record<string, number>,
-        anonymous ? {} : { name: name || undefined, email: email || undefined }
+        anonymous ? {} : { name: name || undefined, email: email || undefined },
+        demographics
       )
 
       if (result.ok) {
@@ -112,6 +114,46 @@ export function SurveyForm({ questionnaireId, anonymous, domainContext }: Survey
             />
           </div>
         )}
+
+        {/* Demographic questions — optional, builds richer personas */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono text-neutral-500 bg-neutral-800 px-2 py-0.5 rounded">
+              About you
+            </span>
+            <h2 className="text-sm font-medium text-neutral-300">Quick background questions</h2>
+            <span className="text-xs text-neutral-600 ml-auto">Optional</span>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {DEMOGRAPHIC_QUESTIONS.map((dq) => (
+              <div key={dq.id} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 space-y-2">
+                <p className="text-xs font-medium text-neutral-300">{dq.label}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {dq.options.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() =>
+                        setDemographics((prev) =>
+                          prev[dq.id] === opt.value
+                            ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== dq.id))
+                            : { ...prev, [dq.id]: opt.value }
+                        )
+                      }
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                        demographics[dq.id] === opt.value
+                          ? 'bg-white text-neutral-950'
+                          : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Questions by module */}
         {MODULES.map((mod) => (

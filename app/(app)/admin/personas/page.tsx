@@ -141,10 +141,11 @@ export default async function AdminPersonasPage() {
                 <select
                   id="k"
                   name="k"
-                  defaultValue="3"
+                  defaultValue="0"
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-neutral-500"
                 >
-                  {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                  <option value="0">Auto (recommended)</option>
+                  {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                     <option key={n} value={n}>{n} clusters</option>
                   ))}
                 </select>

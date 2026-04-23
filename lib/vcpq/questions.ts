@@ -59,6 +59,74 @@ export const QUESTIONS: Question[] = [
   { id: 'D6', module: 'D', dimension: 'stress_resilience', reversed: true,  text: 'I become visibly anxious under heavy pressure.' },
 ]
 
+export interface DemographicOption { value: string; label: string }
+export interface DemographicQuestion { id: string; label: string; options: DemographicOption[] }
+
+export const DEMOGRAPHIC_QUESTIONS: DemographicQuestion[] = [
+  {
+    id: 'age',
+    label: 'Age range',
+    options: [
+      { value: '18-25', label: '18–25' },
+      { value: '26-35', label: '26–35' },
+      { value: '36-45', label: '36–45' },
+      { value: '46-55', label: '46–55' },
+      { value: '55+',   label: '55+' },
+    ],
+  },
+  {
+    id: 'relationship',
+    label: 'Relationship status',
+    options: [
+      { value: 'single',       label: 'Single' },
+      { value: 'relationship', label: 'In a relationship' },
+      { value: 'married',      label: 'Married' },
+      { value: 'divorced',     label: 'Divorced / Separated' },
+    ],
+  },
+  {
+    id: 'children',
+    label: 'Children',
+    options: [
+      { value: 'none', label: 'None' },
+      { value: '1',    label: '1' },
+      { value: '2',    label: '2' },
+      { value: '3+',   label: '3 or more' },
+    ],
+  },
+  {
+    id: 'tenure',
+    label: 'Years at this company',
+    options: [
+      { value: '<1',   label: 'Less than 1 year' },
+      { value: '1-3',  label: '1–3 years' },
+      { value: '3-7',  label: '3–7 years' },
+      { value: '7-15', label: '7–15 years' },
+      { value: '15+',  label: '15+ years' },
+    ],
+  },
+  {
+    id: 'work_style',
+    label: 'Work arrangement',
+    options: [
+      { value: 'remote', label: 'Fully remote' },
+      { value: 'hybrid', label: 'Hybrid' },
+      { value: 'office', label: 'Fully in-office' },
+    ],
+  },
+  {
+    id: 'level',
+    label: 'Seniority level',
+    options: [
+      { value: 'ic',         label: 'Individual contributor' },
+      { value: 'lead',       label: 'Team lead' },
+      { value: 'manager',    label: 'Manager' },
+      { value: 'senior_mgr', label: 'Senior manager / Director' },
+      { value: 'exec',       label: 'Executive' },
+    ],
+  },
+]
+
 export const QUESTIONS_BY_MODULE = QUESTIONS.reduce<Record<Module, Question[]>>(
   (acc, q) => { acc[q.module].push(q); return acc },
   { A: [], B: [], C: [], D: [] }

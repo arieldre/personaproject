@@ -13,7 +13,7 @@ dotenv.config({ path: '.env.local' })
 
 import postgres from 'postgres'
 import { computePersonalityVector } from '../lib/vcpq/vector'
-import { kmeanspp, type Cluster } from '../lib/clustering/kmeans'
+import { kmeanspp, optimalK, type Cluster } from '../lib/clustering/kmeans'
 import { DIMENSIONS } from '../lib/vcpq/vector'
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
@@ -291,13 +291,14 @@ async function main() {
     await sql`UPDATE questionnaires SET total_responses = ${allResponseIds.length} WHERE id = ${questionnaireId}`
 
     // ── 5. Clustering ────────────────────────────────────────────────────────
-    console.log('\n── Step 5: Clustering (k=5)')
+    const autoK = optimalK(allVectors, 3, 10)
+    console.log('\n── Step 5: Clustering (auto k=' + autoK + ')')
     const [job] = await sql`
       INSERT INTO jobs (type, status, company_id, entity_id, entity_type, metadata)
       VALUES ('cluster', 'running', ${companyId}, ${questionnaireId}, 'questionnaire', '{}')
       RETURNING id
     `
-    const clusters = kmeanspp(allVectors, 5)
+    const clusters = kmeanspp(allVectors, autoK)
     console.log(`   ${clusters.map((c, i) => `cluster${i}=${c.memberIndices.length}`).join(', ')}`)
 
     // ── 6. Personas ──────────────────────────────────────────────────────────

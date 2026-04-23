@@ -107,6 +107,82 @@ function centroidsEqual(a: number[][], b: number[][], eps = 1e-10): boolean {
   return true
 }
 
+// Silhouette score for a clustering result.
+// Returns value in [-1, 1]; higher = better-separated clusters.
+export function silhouetteScore(vectors: number[][], clusters: Cluster[]): number {
+  const n = vectors.length
+  if (clusters.length <= 1 || n < 2) return 0
+
+  // Build assignment map: vectorIndex → clusterIndex
+  const assignment = new Array<number>(n)
+  for (let c = 0; c < clusters.length; c++) {
+    for (const idx of clusters[c].memberIndices) assignment[idx] = c
+  }
+
+  let totalS = 0
+  for (let i = 0; i < n; i++) {
+    const ci = assignment[i]
+    const clusterMembers = clusters[ci].memberIndices
+
+    // a(i): mean distance to other points in same cluster
+    let a = 0
+    if (clusterMembers.length > 1) {
+      let sum = 0
+      for (const j of clusterMembers) {
+        if (j !== i) sum += euclideanDistance(vectors[i], vectors[j])
+      }
+      a = sum / (clusterMembers.length - 1)
+    }
+
+    // b(i): min mean distance to any other cluster
+    let b = Infinity
+    for (let c = 0; c < clusters.length; c++) {
+      if (c === ci || clusters[c].memberIndices.length === 0) continue
+      let sum = 0
+      for (const j of clusters[c].memberIndices) {
+        sum += euclideanDistance(vectors[i], vectors[j])
+      }
+      const mean = sum / clusters[c].memberIndices.length
+      if (mean < b) b = mean
+    }
+
+    const s = b === Infinity ? 0 : (b - a) / Math.max(a, b)
+    totalS += s
+  }
+
+  return totalS / n
+}
+
+// Run kmeanspp `attempts` times for a given k, return the clustering with best silhouette.
+function bestKmeans(vectors: number[][], k: number, attempts = 3): { clusters: Cluster[]; score: number } {
+  let best: Cluster[] | null = null
+  let bestScore = -Infinity
+  for (let t = 0; t < attempts; t++) {
+    const clusters = kmeanspp(vectors, k)
+    const score = silhouetteScore(vectors, clusters)
+    if (score > bestScore) { bestScore = score; best = clusters }
+  }
+  return { clusters: best!, score: bestScore }
+}
+
+// Automatically choose k in [minK, maxK] using silhouette score.
+// Runs kmeanspp multiple times per k and picks the k with the highest score.
+export function optimalK(vectors: number[][], minK = 3, maxK = 10): number {
+  const n = vectors.length
+  // Need at least 2 points per cluster to compute silhouette
+  const hi = Math.min(maxK, Math.floor(n / 2))
+  const lo = Math.min(minK, hi)
+  if (lo === hi) return lo
+
+  let bestK = lo
+  let bestScore = -Infinity
+  for (let k = lo; k <= hi; k++) {
+    const { score } = bestKmeans(vectors, k)
+    if (score > bestScore) { bestScore = score; bestK = k }
+  }
+  return bestK
+}
+
 export function kmeanspp(vectors: number[][], k: number, maxIter = 100): Cluster[] {
   if (vectors.length === 0) throw new Error('No vectors provided')
   if (k < 1) throw new Error('k must be >= 1')

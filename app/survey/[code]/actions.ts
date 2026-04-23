@@ -14,7 +14,8 @@ export type SubmitResult =
 export async function submitSurvey(
   questionnaireId: string,
   rawAnswers: Record<string, number>,
-  meta: { name?: string; email?: string; userId?: string }
+  meta: { name?: string; email?: string; userId?: string },
+  demographics: Record<string, string> = {}
 ): Promise<SubmitResult> {
   const answers = rawAnswers as VCPQAnswers
   const { valid, missing } = validateAnswers(answers)
@@ -35,6 +36,7 @@ export async function submitSurvey(
       answers: rawAnswers,
       personalityVector: vector,
       rawSurveyScores: rawAnswers,
+      demographics: Object.keys(demographics).length > 0 ? demographics : {},
       completedAt: new Date(),
     })
 

@@ -5,7 +5,7 @@ import { createGroq } from '@ai-sdk/groq'
 import { db } from '@/lib/db'
 import { questionnaireResponses, personas, jobs } from '@/lib/db/schema'
 import { eq, and, isNotNull } from 'drizzle-orm'
-import { kmeanspp } from '@/lib/clustering/kmeans'
+import { kmeanspp, optimalK } from '@/lib/clustering/kmeans'
 import { DIMENSIONS } from '@/lib/vcpq/vector'
 
 interface ClusterEventData {
@@ -50,8 +50,9 @@ export const clusterFn = inngest.createFunction(
       ) {
         throw new NonRetriableError('invalid payload: jobId, companyId, questionnaireId must be strings')
       }
-      if (typeof data.k !== 'number' || data.k < 1 || data.k > 10) {
-        throw new NonRetriableError('invalid payload: k must be a number between 1 and 10')
+      // k=0 means auto-detect optimal k via silhouette score
+      if (typeof data.k !== 'number' || data.k < 0 || data.k > 10) {
+        throw new NonRetriableError('invalid payload: k must be 0 (auto) or 1–10')
       }
     })
 
@@ -71,6 +72,7 @@ export const clusterFn = inngest.createFunction(
         .select({
           id: questionnaireResponses.id,
           vector: questionnaireResponses.personalityVector,
+          demographics: questionnaireResponses.demographics,
         })
         .from(questionnaireResponses)
         .where(
@@ -84,13 +86,15 @@ export const clusterFn = inngest.createFunction(
         throw new NonRetriableError('Need at least 3 responses to cluster')
       }
 
-      return results as { id: string; vector: number[] }[]
+      return results as { id: string; vector: number[]; demographics: Record<string, string> | null }[]
     })
 
     // Step 4: run k-means++ — pure CPU work, no I/O
+    // k=0 means auto: silhouette score selects the best k in [3, min(10, n/2)]
     const clusters = await step.run('run-kmeans', async () => {
       const vectors = rows.map((r) => r.vector)
-      return kmeanspp(vectors, k)
+      const chosenK = k === 0 ? optimalK(vectors, 3, 10) : k
+      return kmeanspp(vectors, chosenK)
     })
 
     // Step 5: per-cluster persona generation — each runs as its own Inngest step
@@ -106,22 +110,57 @@ export const clusterFn = inngest.createFunction(
 
           const dimensionLines = DIMENSIONS.map((d, idx) => `  ${d}: ${centroid[idx].toFixed(2)}`).join('\n')
 
-          const prompt = `You are building personality personas for a workplace tool. Based on this cluster data, generate a professional persona profile.
+          // Aggregate demographic modes for this cluster
+          const clusterDemos = memberIndices
+            .map((idx) => rows[idx].demographics ?? {})
+          const demoFields = ['age', 'relationship', 'children', 'tenure', 'work_style', 'level']
+          const demoSummary: Record<string, string> = {}
+          for (const field of demoFields) {
+            const counts: Record<string, number> = {}
+            for (const d of clusterDemos) {
+              const v = d[field]
+              if (v) counts[v] = (counts[v] ?? 0) + 1
+            }
+            const entries = Object.entries(counts)
+            if (entries.length > 0) {
+              demoSummary[field] = entries.sort((a, b) => b[1] - a[1])[0][0]
+            }
+          }
+          const hasDemos = Object.keys(demoSummary).length > 0
+          const demoLines = hasDemos
+            ? Object.entries(demoSummary)
+                .map(([k, v]) => `  ${k}: ${v}`)
+                .join('\n')
+            : ''
 
-Cluster ${i + 1} of ${k}: ${clusterSize} employees
-Centroid personality dimensions (scale -1 to 1):
+          const chosenK = clusters.length
+          const prompt = `You are building personality personas for a workplace tool. Based on this cluster data, generate a rich, vivid persona profile that feels like a real person.
+
+Cluster ${i + 1} of ${chosenK}: ${clusterSize} employees
+Personality dimensions (scale -1 to 1):
 ${dimensionLines}
+${hasDemos ? `\nTypical demographic profile (most common values in cluster):\n${demoLines}` : ''}
+
+Generate a persona that feels like a real person. Use the demographics to add specific life context (e.g. "married with two kids", "early career", "remote worker"). Age and life stage should inform the persona's priorities and communication style.
 
 Respond with ONLY valid JSON (no markdown):
 {
   "name": "A descriptive persona name (e.g. 'The Analytical Architect')",
   "tagline": "One sentence describing this persona type (max 100 chars)",
+  "demographics": {
+    "age": "approximate age or range based on data",
+    "relationship_status": "single/married/etc or 'not specified'",
+    "children": "number or 'none' or 'not specified'",
+    "tenure": "years at company",
+    "work_style": "remote/hybrid/in-office or 'not specified'",
+    "level": "seniority level"
+  },
   "summary": {
-    "overview": "2-3 sentence overview of this persona",
+    "overview": "2-3 sentences describing this persona as a real person — include their life stage, work style, and what drives them",
     "strengths": ["strength1", "strength2", "strength3"],
     "growthAreas": ["area1", "area2"]
   },
-  "systemPrompt": "You are [persona name]. [2-3 sentences of in-character behavioral guidance for an AI to embody this persona in workplace conversations. Focus on communication style, decision-making approach, and interpersonal tendencies.]"
+  "systemPrompt": "You are [persona name], [brief first-person life description including age/family/role]. [2-3 sentences of in-character behavioral guidance for an AI to embody this persona in workplace conversations. Focus on communication style, decision-making approach, and interpersonal tendencies.]"
 }`
 
           // generateText throws on failure — let Inngest retry handle it
@@ -131,7 +170,7 @@ Respond with ONLY valid JSON (no markdown):
             maxOutputTokens: 800,
           })
 
-          const profile: PersonaProfile = JSON.parse(text)
+          const profile = JSON.parse(text) as PersonaProfile & { demographics?: Record<string, string> }
 
           const inserted = await db
             .insert(personas)
@@ -143,6 +182,7 @@ Respond with ONLY valid JSON (no markdown):
               status: 'active',
               summary: profile.summary,
               systemPrompt: profile.systemPrompt,
+              extendedProfile: profile.demographics ? { demographics: profile.demographics } : {},
               // Drizzle custom type handles number[] → pgvector serialization
               personalityVector: centroid,
               clusterSize,
