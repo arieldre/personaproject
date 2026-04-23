@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useTransition } from 'react'
+import { useEffect, useRef, useTransition, useState } from 'react'
 import { triggerPing } from './actions'
 
 interface Job {
@@ -12,19 +12,36 @@ interface Job {
   completedAt: Date | null
 }
 
+const MAX_POLL_ATTEMPTS = 40 // ~2 minutes at 3s interval
+
 export function JobsClient({ jobs, hasRunning }: { jobs: Job[]; hasRunning: boolean }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [pollError, setPollError] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollCount = useRef(0)
 
-  // Poll every 3s when jobs are running
+  // P1: poll every 3s while running, cap at MAX_POLL_ATTEMPTS to prevent infinite loop
   useEffect(() => {
     if (!hasRunning) {
       if (intervalRef.current) clearInterval(intervalRef.current)
+      pollCount.current = 0
       return
     }
+    setPollError(false)
     intervalRef.current = setInterval(() => {
-      startTransition(() => router.refresh())
+      if (pollCount.current >= MAX_POLL_ATTEMPTS) {
+        clearInterval(intervalRef.current!)
+        setPollError(true)
+        return
+      }
+      pollCount.current++
+      try {
+        startTransition(() => router.refresh())
+      } catch {
+        clearInterval(intervalRef.current!)
+        setPollError(true)
+      }
     }, 3000)
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
@@ -56,6 +73,12 @@ export function JobsClient({ jobs, hasRunning }: { jobs: Job[]; hasRunning: bool
           {isPending ? 'Triggering…' : 'Trigger Ping'}
         </button>
       </div>
+
+      {pollError && (
+        <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 px-4 py-3 text-sm text-yellow-400">
+          Status sync stopped after 2 minutes. Refresh the page to check job status.
+        </div>
+      )}
 
       {jobs.length === 0 ? (
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-8 py-12 text-center">
