@@ -2,31 +2,51 @@
 
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { signIn } from '@/lib/auth/client'
+import { signIn, authClient } from '@/lib/auth/client'
 
 export default function LoginPage() {
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get('callbackUrl') ?? '/dashboard'
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
 
   async function handleGoogleSignIn() {
     setLoading(true)
     setError(null)
     try {
-      await signIn.social({
-        provider: 'google',
-        callbackURL: callbackUrl,
-      })
+      await signIn.social({ provider: 'google', callbackURL: callbackUrl })
     } catch {
       setError('Sign in failed. Please try again.')
       setLoading(false)
     }
   }
 
+  async function handleEmailSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    try {
+      if (mode === 'signup') {
+        const { error: err } = await authClient.signUp.email({ name, email, password })
+        if (err) { setError(err.message ?? 'Sign up failed'); setLoading(false); return }
+      }
+      const { error: err } = await signIn.email({ email, password })
+      if (err) { setError(err.message ?? 'Sign in failed'); setLoading(false); return }
+      // Full navigation so middleware picks up the new session cookie
+      window.location.href = callbackUrl
+    } catch {
+      setError('Authentication failed. Please try again.')
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-neutral-950">
-      <div className="w-full max-w-sm space-y-8 px-6">
+      <div className="w-full max-w-sm space-y-6 px-6">
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-white tracking-tight">Persona Platform</h1>
           <p className="mt-2 text-sm text-neutral-400">Sign in to your workspace</p>
@@ -52,8 +72,67 @@ export default function LoginPage() {
           {loading ? 'Signing in…' : 'Continue with Google'}
         </button>
 
-        <p className="text-center text-xs text-neutral-600">
-          For access, contact your workspace administrator.
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-neutral-800" />
+          <span className="text-xs text-neutral-600">or</span>
+          <div className="flex-1 h-px bg-neutral-800" />
+        </div>
+
+        <form onSubmit={handleEmailSubmit} className="space-y-3">
+          {mode === 'signup' && (
+            <input
+              data-testid="email-name-input"
+              type="text"
+              placeholder="Full name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500"
+            />
+          )}
+          <input
+            data-testid="email-input"
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500"
+          />
+          <input
+            data-testid="password-input"
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={8}
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500"
+          />
+          <button
+            data-testid="email-submit-btn"
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-lg bg-white px-4 py-2.5 text-sm font-medium text-neutral-950 hover:bg-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
+          </button>
+        </form>
+
+        <p className="text-center text-xs text-neutral-500">
+          {mode === 'signin' ? (
+            <>No account?{' '}
+              <button onClick={() => setMode('signup')} className="text-neutral-300 hover:text-white underline">
+                Sign up
+              </button>
+            </>
+          ) : (
+            <>Have an account?{' '}
+              <button onClick={() => setMode('signin')} className="text-neutral-300 hover:text-white underline">
+                Sign in
+              </button>
+            </>
+          )}
         </p>
       </div>
     </div>

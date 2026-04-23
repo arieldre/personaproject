@@ -18,8 +18,12 @@ interface PersonaMatch {
   persona_vector: number[]
 }
 
+// Cosine similarity [-1,+1] → compatibility [0,100%]
+// -1 (opposite) = 0%, 0 (perpendicular) = 50%, +1 (identical) = 100%
+const toCompatibility = (similarity: number) => Math.round(((similarity + 1) / 2) * 100)
+
 const PCT_COLOR = (pct: number) =>
-  pct >= 80 ? 'text-green-400' : pct >= 60 ? 'text-yellow-400' : 'text-neutral-400'
+  pct >= 75 ? 'text-green-400' : pct >= 55 ? 'text-yellow-400' : 'text-neutral-400'
 
 function DimBars({
   employeeVector,
@@ -85,7 +89,7 @@ function MatchCard({
   expanded: boolean
   onToggle: () => void
 }) {
-  const pct = Math.round(match.similarity * 100)
+  const pct = toCompatibility(match.similarity)
 
   return (
     <div
@@ -114,7 +118,7 @@ function MatchCard({
           >
             {pct}%
           </p>
-          <p className="text-[10px] text-neutral-600">match</p>
+          <p className="text-[10px] text-neutral-600">compatibility</p>
         </div>
       </div>
 

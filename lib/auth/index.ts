@@ -49,7 +49,7 @@ export const auth = betterAuth({
       companyId: {
         type: 'string',
         nullable: true,
-        fieldName: 'company_id',
+        fieldName: 'companyId',
       },
       role: {
         type: 'string',
@@ -59,7 +59,7 @@ export const auth = betterAuth({
       isActive: {
         type: 'boolean',
         defaultValue: true,
-        fieldName: 'is_active',
+        fieldName: 'isActive',
       },
     },
   },
