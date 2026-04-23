@@ -30,9 +30,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Link href="/match" className="text-sm text-neutral-400 hover:text-white transition-colors">
               Match
             </Link>
+            <Link href="/training" className="text-sm text-neutral-400 hover:text-white transition-colors">
+              Training
+            </Link>
             {(u.role === 'company_admin' || u.role === 'super_admin') && (
               <Link href="/admin/personas" className="text-sm text-neutral-400 hover:text-white transition-colors">
-                Admin
+                Personas
               </Link>
             )}
           </div>

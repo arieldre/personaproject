@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { getServerSession } from '@/lib/auth/server'
 import { db } from '@/lib/db'
 import { questionnaires, personas, user as userTable } from '@/lib/db/schema'
@@ -118,10 +119,42 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        <div className="mt-12 rounded-xl border border-neutral-800 bg-neutral-900 px-8 py-12 text-center">
-          <p className="text-neutral-500 text-sm">
-            Phase 1 complete — survey, personas, and chat coming next.
-          </p>
+        <div className="mt-12 grid sm:grid-cols-2 gap-4">
+          <Link
+            href="/admin/personas"
+            className="rounded-xl border border-neutral-800 bg-neutral-900 hover:bg-neutral-800 transition-colors px-6 py-5 group"
+          >
+            <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Manage</p>
+            <p className="font-semibold group-hover:text-white">Personas</p>
+            <p className="text-sm text-neutral-400 mt-1">View all AI personas, descriptions, and trait profiles</p>
+          </Link>
+
+          <Link
+            href="/match"
+            className="rounded-xl border border-neutral-800 bg-neutral-900 hover:bg-neutral-800 transition-colors px-6 py-5 group"
+          >
+            <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Hero feature</p>
+            <p className="font-semibold group-hover:text-white">Employee Match</p>
+            <p className="text-sm text-neutral-400 mt-1">Find which persona best represents any employee</p>
+          </Link>
+
+          <Link
+            href="/training"
+            className="rounded-xl border border-neutral-800 bg-neutral-900 hover:bg-neutral-800 transition-colors px-6 py-5 group"
+          >
+            <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Practice</p>
+            <p className="font-semibold group-hover:text-white">Training Scenarios</p>
+            <p className="text-sm text-neutral-400 mt-1">Run graded manager conversations with personas</p>
+          </Link>
+
+          <Link
+            href="/admin/personas"
+            className="rounded-xl border border-neutral-800 bg-neutral-900 hover:bg-neutral-800 transition-colors px-6 py-5 group"
+          >
+            <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Chat</p>
+            <p className="font-semibold group-hover:text-white">Talk to a Persona</p>
+            <p className="text-sm text-neutral-400 mt-1">Open any persona and start a free-form conversation</p>
+          </Link>
         </div>
 
         <DataPrivacySection />
