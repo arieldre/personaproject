@@ -1,8 +1,11 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 const FROM = 'Persona Platform <noreply@persona-platform.com>'
+
+function getResend() {
+  if (!process.env.RESEND_API_KEY) return null
+  return new Resend(process.env.RESEND_API_KEY)
+}
 
 export async function sendPasswordResetEmail({
   to,
@@ -11,7 +14,8 @@ export async function sendPasswordResetEmail({
   to: string
   resetUrl: string
 }) {
-  if (!process.env.RESEND_API_KEY) {
+  const resend = getResend()
+  if (!resend) {
     console.log(`[email:dev] password reset → ${resetUrl}`)
     return
   }
@@ -47,7 +51,8 @@ export async function sendInvitationEmail({
   inviteUrl: string
   expiresAt: Date
 }) {
-  if (!process.env.RESEND_API_KEY) {
+  const resend = getResend()
+  if (!resend) {
     console.log(`[email:dev] invitation → ${inviteUrl}`)
     return
   }
