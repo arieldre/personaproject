@@ -55,6 +55,9 @@ export const user = pgTable('user', {
   companyId: uuid('company_id').references(() => companies.id, { onDelete: 'set null' }),
   role: userRoleEnum('role').notNull().default('user'),
   isActive: boolean('is_active').notNull().default(true),
+
+  // GDPR soft-delete: set on deletion request, purged after 30 days
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 })
 
 export const session = pgTable('session', {

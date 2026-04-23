@@ -3,6 +3,7 @@ import { getServerSession } from '@/lib/auth/server'
 import { db } from '@/lib/db'
 import { questionnaires, personas, user as userTable } from '@/lib/db/schema'
 import { eq, and, count, sql } from 'drizzle-orm'
+import DataPrivacySection from './_components/DataPrivacySection'
 
 export default async function DashboardPage() {
   const session = await getServerSession()
@@ -122,6 +123,8 @@ export default async function DashboardPage() {
             Phase 1 complete — survey, personas, and chat coming next.
           </p>
         </div>
+
+        <DataPrivacySection />
       </div>
     </div>
   )
