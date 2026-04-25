@@ -2,68 +2,96 @@
 Updated: 2026-04-25
 
 ## Completed This Session
-- Phase 11: Consult Agents — each persona (default + company) now has "Consult" mode
-- Consult page: /consult/[personaId] — free expert chat, no grading, violet UI
-- Training page: "Consult →" button added to each default persona card
+### Phase 11: Consult Agents
+- Each persona (default + company) now has "Consult" mode alongside "Train"
+- `/consult/[personaId]` page — free expert chat, no grading, violet UI
+- Training page: "Consult →" button on each default persona card
 - Personas page: "Chat →" and "Consult →" buttons side by side
-- Chat route: ?mode=consult loads consultSystemPrompt, skips scenario/anti-drift injection
-- Enriched all 6 default personas: age, family, personal quirks, speech patterns
-- PERSONA_GROUNDING_HEADER: injected into all training systemPrompts at export time
-- persistentReminder: injected after conversation history (≥4 turns) to prevent persona fade
-- Removed 6 legacy scenarios (conflict-resolution, performance-feedback archetypes)
-- **Critical fix:** training-session.tsx was parsing stream as dataStream (0: prefix) but route returns plain text → chat showed empty responses. Fixed to read plain bytes.
+- Chat route: `?mode=consult` loads consultSystemPrompt, skips scenario injection
+- Company personas: auto-derived consult prompt from tagline + systemPrompt (no migration)
 
-## Last Commits
-- `61d04341` — fix: training chat stream parsing — drop 0: prefix filter
-- `d6d19e02` — feat: persona anti-drift — persistentReminder injected after history
-- `d98d2838` — feat: Phase 11 — consult agents + enriched personas + remove legacy scenarios
+### Persona Enrichment
+- All 6 default personas enriched with age, family, personal quirks, speech patterns
+- `PERSONA_GROUNDING_HEADER`: injected into all training systemPrompts — enforces organic details, no breaking character
+- `persistentReminder`: appended to system prompt when conversation ≥4 turns (anti-drift, replaces fragile fake user/assistant injection)
+- Removed 6 legacy scenarios (conflict-resolution, performance-feedback) — superseded by default library
+
+### Critical Bug Fixes
+- **Stream parsing fix**: training-session.tsx was filtering for `0:` prefix (dataStream) but route returns plain text → empty responses in training chat. Fixed to read raw bytes.
+
+### Security Fixes (from independent review agent)
+- **P1**: export route missing `try/catch` on requireAuth (500 instead of 401) — fixed
+- **P1**: export route spreading full user row including internal fields — now allowlists id/name/email/createdAt
+- **P1**: chat route sanitizing only last message, not history — now strips XML from all turns
+- **P1**: rate-limit failing open on DB error (→ unbounded LLM spend) — now fails closed
+- **P1**: match POST responseId lookup missing company join — fixed
+- **P1**: export trainingSessions missing companyId filter — fixed
+- **P2**: persistentReminder via fake user/assistant exchange → moved to system prompt append
+- **P2**: grade route messages not validated — now filtered (role, length 10k, max 100 msgs)
+- **P2**: rate-limit SQL interval used string concat → replaced with `make_interval(secs =>)`
+- **P2**: DB-backed rate limiter (migration 0005) — replaces in-memory map that resets on cold start
+
+### E2E Verification (all green)
+- Training chat: stream fix confirmed, responses non-empty, Jordan Hayes responds naturally
+- Consult: violet badge visible, expert HR advice returned for PIP vs written warning question
+- Personas page: Chat + Consult buttons confirmed on all company persona cards
+- Cross-tenant isolation API probes: spec written
+
+## Last Commits (in order)
+- `12432682` — test: E2E verification — training chat + consult feature confirmed working
+- `7b615431` — fix: security review P1s + P2s
+- `27677151` — fix: P1/P2 security — tenant isolation + DB rate limiter
+- `d6d19e02` — feat: persona anti-drift — persistentReminder
+- `d98d2838` — feat: Phase 11 — consult agents + enriched personas
 Branch: `phase/1-foundation` (pushed ✅)
 
 ## Deploy Status
 **LIVE** → https://personaproject-one.vercel.app
-Latest deploy: `personaproject-ai9bstht5-arararar34-gmailcoms-projects.vercel.app` (promoted ✅)
-GitHub auto-deploy: NOT connected — vercel.com/…/settings/git
+Latest: `personaproject-no0pd05nk-arararar34-gmailcoms-projects.vercel.app` (promoted ✅)
+GitHub auto-deploy: NOT connected — vercel.com/…/settings/git (one-click)
 
 ## Demo / Test Credentials
 | Email | Password | Role |
 |-------|----------|------|
 | admin@acme-demo.com | AcmeDemo123! | company_admin |
-| alice@acme-demo.com | (seeded, check DB — seed doesn't set pw for employees) | user |
 
-**Important:** Only the admin@acme-demo.com account has a password set (created via Better Auth signup in seed). Employee accounts are survey respondents only — they can't log in unless you add email/pw auth for them separately.
-Re-seed: `npm run seed` (idempotent) in C:/Users/ArielD/personaproject
+**Note:** Only the admin account has a password. Employee accounts (alice@, dave@, grace@, carol@, emma@, bob@, frank@ @acme-demo.com) are survey respondents only — no login. Re-seed: `npm run seed` in `C:/Users/ArielD/personaproject`.
 
-## Architecture — Consult Feature
-- Default personas: `consultSystemPrompt` + `consultTagline` in lib/training/default-personas.ts
-- Company personas: consult prompt auto-derived from tagline + existing systemPrompt (no migration)
-- Route: /api/chat/[personaId]?mode=consult → loads consultSystemPrompt, skips scenario injection and anti-drift
-- Page: app/(app)/consult/[personaId]/page.tsx (server) + consult-session.tsx (client)
-- Theme: violet (vs blue for chat, green for training)
+## Architecture — Key Patterns
 
-## Persona Anti-Drift Architecture
-- `PERSONA_GROUNDING_HEADER`: prepended to every training systemPrompt at export — enforces organic personal details, no breaking character
-- `persistentReminder`: 1-sentence character constraint injected as [SYSTEM: ...] / "Understood." exchange after history when ≥4 turns
-- Source: G-Eval research on post-history instruction injection
-- Trigger: training mode only, not consult mode
+### Consult vs Train mode
+- URL: `/training/[scenarioId]` = train, `/consult/[personaId]` = consult
+- API: `/api/chat/[personaId]?mode=consult` switches system prompt
+- Default personas: hardcoded `consultSystemPrompt` + `consultTagline` per persona
+- Company personas: derived from `persona.tagline` + `persona.systemPrompt`
 
-## Remaining Gaps — Security (P1)
-- User export route: conversations not scoped to company
-- Match route: responseId lookup has no company isolation
-- Rate limiter: in-memory, resets on restart
-- Cross-tenant isolation E2E test: not written
+### Anti-drift architecture
+- `PERSONA_GROUNDING_HEADER` in `lib/training/default-personas.ts` — prepended to every training prompt at export time
+- `persistentReminder` appended to `systemPrompt` when `conversationHistory.length >= 4`
+- Personal details (age, family) in base system prompt — marked organic-only, not intro
+
+### Stream pattern
+Route: `result.toTextStreamResponse()` → plain bytes  
+Client (training-session.tsx + consult-session.tsx): `decoder.decode(value, { stream: true })` — raw bytes  
+**Never** filter for `0:` prefix — that's `toDataStreamResponse()` format only
+
+## Remaining Gaps — Security (P2 only, P1s all fixed)
+- Cross-tenant E2E test: spec written, `test.fixme()` for full two-company test
+- Rate limiter: fails closed but has no in-process fallback for DB-down warmth
+- JWT claims: not validated against DB on every request (P2, unchanged)
 
 ## Remaining Gaps — Features
-- GOOGLE_CLIENT_ID/SECRET: Google login broken (email/pw works ✅)
-- INNGEST_EVENT_KEY/SIGNING_KEY: grading/clustering won't fire in production → set on Vercel dashboard
-- Billing/Stripe: not started
-- RAG for consult: v1 uses deep system prompts. Need embedding model (Groq doesn't support) to add RAG later.
+- **INNGEST_EVENT_KEY + INNGEST_SIGNING_KEY**: set on Vercel dashboard → grading + clustering fire in production (grading shows "failed" locally without Inngest running)
+- Google OAuth: GOOGLE_CLIENT_ID/SECRET not set (email/pw works ✅)
+- Billing/Stripe: Phase 12, not started
+- RAG for consult: needs embedding API key (OpenAI/Voyage/Cohere) — Groq doesn't support embeddings
+- GitHub auto-deploy: one-click at vercel.com/…/settings/git
 
 ## Next Actions (priority order)
-1. **Set INNGEST keys on Vercel** → grading + clustering fire in production
-2. **Fix security gaps**: user export + match route company isolation (P1s)
-3. **Cross-tenant E2E test**: implement test.fixme in admin-jobs.spec.ts
-4. **GitHub auto-deploy**: vercel.com/…/settings/git → Connect GitHub repo
-5. **Billing/Stripe**: Phase 12
+1. **Set INNGEST keys on Vercel** → grading fires in production (manual dashboard action)
+2. **GitHub auto-deploy** → vercel.com/…/settings/git (manual)
+3. **Phase 12: Billing/Stripe** — requires Stripe keys from user
+4. **RAG for consult** — requires embedding API key from user
 
 ## Phase Status
 1 Foundation ✅ · 2 Survey ✅ · 3 Inngest ✅ · 4 Admin ✅ · 5 Clustering ✅
