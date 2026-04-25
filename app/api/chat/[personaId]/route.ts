@@ -46,6 +46,7 @@ export async function POST(
 
   // 3. Load persona — different paths for default vs company personas
   let systemPrompt: string
+  let persistentReminder: string | undefined
 
   const mode = req.nextUrl.searchParams.get('mode') // 'consult' | null
 
@@ -55,6 +56,10 @@ export async function POST(
       return new Response('Persona not found', { status: 404 })
     }
     systemPrompt = mode === 'consult' ? defaultPersona.consultSystemPrompt : defaultPersona.systemPrompt
+    // Inject persistent reminder in training mode to prevent persona fade in long conversations
+    if (mode !== 'consult') {
+      persistentReminder = defaultPersona.persistentReminder
+    }
   } else {
     // Company persona — enforce tenant isolation
     const [persona] = await db
@@ -194,10 +199,20 @@ ${persona.systemPrompt ?? ''}`
     content: m.content,
   }))
 
+  // Inject persistent reminder after history to prevent persona fade in long conversations
+  // Research: re-inserting character constraint after history is the highest-value anti-drift technique
+  const messagesWithReminder: { role: 'user' | 'assistant'; content: string }[] = [
+    ...conversationHistory,
+    ...(persistentReminder && conversationHistory.length >= 4
+      ? [{ role: 'user' as const, content: `[SYSTEM: ${persistentReminder}]` }, { role: 'assistant' as const, content: 'Understood.' }]
+      : []),
+    { role: 'user', content: sanitized },
+  ]
+
   const result = streamText({
     model: groq(process.env.GROQ_MODEL!),
     system: systemPrompt,
-    messages: [...conversationHistory, { role: 'user', content: sanitized }],
+    messages: messagesWithReminder,
     maxOutputTokens: 400,
     temperature: 0.55,
   })
