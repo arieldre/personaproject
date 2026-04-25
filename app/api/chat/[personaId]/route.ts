@@ -7,11 +7,9 @@ import { eq, and, desc } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { getDefaultPersona } from '@/lib/training/default-personas'
 import { getScenario } from '@/lib/training/scenarios'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 export const maxDuration = 60
-
-// In-memory rate limiter: 20 messages per user per 60-second window.
-const rateLimitMap = new Map<string, { count: number; windowStart: number }>()
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY })
 
@@ -94,18 +92,10 @@ ${persona.systemPrompt ?? ''}`
     }
   }
 
-  // 5. Rate limit: 20 messages per user per 60-second window
-  const now = Date.now()
-  const windowMs = 60_000
-  const existing = rateLimitMap.get(user.id)
-
-  if (existing && now - existing.windowStart < windowMs) {
-    if (existing.count >= 20) {
-      return new Response('Rate limit exceeded', { status: 429 })
-    }
-    existing.count++
-  } else {
-    rateLimitMap.set(user.id, { count: 1, windowStart: now })
+  // 5. Rate limit: 20 messages per user per 60-second window (DB-backed, survives cold starts)
+  const { allowed } = await checkRateLimit(user.id)
+  if (!allowed) {
+    return new Response('Rate limit exceeded', { status: 429 })
   }
 
   // 6. Conversation persistence — skip for default personas (training mode, no DB FK)

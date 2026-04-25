@@ -8,10 +8,10 @@ import {
   messages,
   trainingSessions,
 } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 
 export async function GET() {
-  const authUser = await requireAuth()
+  const authUser = (await requireAuth()) as { id: string; companyId?: string }
 
   // Fetch all user-owned data in parallel
   const [profile, responses, convRows, sessions] = await Promise.all([
@@ -22,16 +22,22 @@ export async function GET() {
       .from(questionnaireResponses)
       .where(eq(questionnaireResponses.userId, authUser.id)),
 
-    // Conversations with their messages
+    // Conversations with their messages — userId alone is sufficient (user → single company)
     db.query.conversations.findMany({
       where: eq(conversations.userId, authUser.id),
       with: { messages: true },
     }),
 
-    db
-      .select()
-      .from(trainingSessions)
-      .where(eq(trainingSessions.userId, authUser.id)),
+    // Scope to companyId to prevent cross-tenant leakage if userId is ever reused
+    authUser.companyId
+      ? db
+          .select()
+          .from(trainingSessions)
+          .where(and(eq(trainingSessions.userId, authUser.id), eq(trainingSessions.companyId, authUser.companyId)))
+      : db
+          .select()
+          .from(trainingSessions)
+          .where(eq(trainingSessions.userId, authUser.id)),
   ])
 
   const userProfile = profile[0]

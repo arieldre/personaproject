@@ -55,11 +55,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 })
   }
 
-  // Fetch employee vector for dim-delta rendering in the UI
+  // Fetch employee vector — must belong to this company (join via questionnaire)
   const [response] = await db
     .select({ personalityVector: questionnaireResponses.personalityVector })
     .from(questionnaireResponses)
-    .where(eq(questionnaireResponses.id, responseId))
+    .innerJoin(questionnaires, eq(questionnaireResponses.questionnaireId, questionnaires.id))
+    .where(
+      and(
+        eq(questionnaireResponses.id, responseId),
+        eq(questionnaires.companyId, user.companyId),
+      )
+    )
 
   if (!response?.personalityVector) {
     return NextResponse.json({ error: 'response not found or incomplete' }, { status: 404 })
