@@ -11,7 +11,12 @@ import {
 import { eq, and } from 'drizzle-orm'
 
 export async function GET() {
-  const authUser = (await requireAuth()) as { id: string; companyId?: string }
+  let authUser: { id: string; companyId?: string }
+  try {
+    authUser = (await requireAuth()) as { id: string; companyId?: string }
+  } catch {
+    return new Response('Unauthorized', { status: 401 })
+  }
 
   // Fetch all user-owned data in parallel
   const [profile, responses, convRows, sessions] = await Promise.all([
@@ -42,8 +47,15 @@ export async function GET() {
 
   const userProfile = profile[0]
 
-  // Strip sensitive internal fields before export
-  const { ...exportableProfile } = userProfile ?? {}
+  // Allowlist only GDPR-safe fields — never spread the full user row (contains internal flags)
+  const exportableProfile = userProfile
+    ? {
+        id: userProfile.id,
+        name: userProfile.name,
+        email: userProfile.email,
+        createdAt: userProfile.createdAt,
+      }
+    : null
 
   const payload = {
     exportedAt: new Date().toISOString(),

@@ -183,26 +183,28 @@ ${persona.systemPrompt ?? ''}`
   }
   const sanitized = lastUserMessage.content.replace(/<[^>]*>/g, '')
 
-  // Pass the full client messages as history (training-session.tsx manages state)
+  // Sanitize ALL history messages — not just the last one (prevents XML injection via prior turns)
   const conversationHistory = clientMessages.slice(0, -1).map((m) => ({
     role: m.role as 'user' | 'assistant',
-    content: m.content,
+    content: m.content.replace(/<[^>]*>/g, ''),
   }))
 
-  // Inject persistent reminder after history to prevent persona fade in long conversations
-  // Research: re-inserting character constraint after history is the highest-value anti-drift technique
-  const messagesWithReminder: { role: 'user' | 'assistant'; content: string }[] = [
+  // Append persistent reminder to system prompt when conversation is long enough
+  // Cleaner than fake user/assistant exchange — avoids synthetic authority confusion
+  const finalSystemPrompt =
+    persistentReminder && conversationHistory.length >= 4
+      ? systemPrompt + `\n\n[Character reminder: ${persistentReminder}]`
+      : systemPrompt
+
+  const messagesWithHistory: { role: 'user' | 'assistant'; content: string }[] = [
     ...conversationHistory,
-    ...(persistentReminder && conversationHistory.length >= 4
-      ? [{ role: 'user' as const, content: `[SYSTEM: ${persistentReminder}]` }, { role: 'assistant' as const, content: 'Understood.' }]
-      : []),
     { role: 'user', content: sanitized },
   ]
 
   const result = streamText({
     model: groq(process.env.GROQ_MODEL!),
-    system: systemPrompt,
-    messages: messagesWithReminder,
+    system: finalSystemPrompt,
+    messages: messagesWithHistory,
     maxOutputTokens: 400,
     temperature: 0.55,
   })

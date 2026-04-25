@@ -31,6 +31,11 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: 'messages must be a non-empty array' }, { status: 400 })
     }
+    // Validate + sanitize each message to prevent role injection and oversized payloads
+    messages = messages
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .slice(0, 100)
+      .map((m) => ({ role: m.role, content: String(m.content).slice(0, 10_000) }))
     if (typeof scenarioId !== 'string' || !scenarioId) {
       return NextResponse.json({ error: 'scenarioId is required' }, { status: 400 })
     }

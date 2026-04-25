@@ -24,12 +24,12 @@ export async function checkRateLimit(userId: string): Promise<RateLimitResult> {
       VALUES (${userId}, NOW(), 1)
       ON CONFLICT (user_id) DO UPDATE SET
         count = CASE
-          WHEN rate_limits.window_start > NOW() - (${windowSec} || ' seconds')::interval
+          WHEN rate_limits.window_start > NOW() - make_interval(secs => ${windowSec})
             THEN rate_limits.count + 1
           ELSE 1
         END,
         window_start = CASE
-          WHEN rate_limits.window_start > NOW() - (${windowSec} || ' seconds')::interval
+          WHEN rate_limits.window_start > NOW() - make_interval(secs => ${windowSec})
             THEN rate_limits.window_start
           ELSE NOW()
         END
@@ -38,9 +38,9 @@ export async function checkRateLimit(userId: string): Promise<RateLimitResult> {
 
     const count = (rows[0] as { count: number })?.count ?? 1
     return { allowed: count <= MAX_REQUESTS, count }
-  } catch {
-    // DB unavailable — fail open (allow request, log for ops)
-    console.warn('[rate-limit] DB unavailable, failing open for user:', userId)
-    return { allowed: true, count: 0 }
+  } catch (err) {
+    // DB unavailable — fail CLOSED to prevent unbounded LLM spend during outages
+    console.error('[rate-limit] DB error, failing closed for user:', userId, err)
+    return { allowed: false, count: MAX_REQUESTS }
   }
 }
