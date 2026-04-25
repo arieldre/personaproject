@@ -134,30 +134,26 @@ export function TrainingSession({ scenario, personas, defaultPersona }: Props) {
       const reader = res.body?.getReader()
       if (!reader) throw new Error('No response body')
 
+      // Add empty assistant stub so streaming updates have a target
+      setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
+
       const decoder = new TextDecoder()
       let assistantText = ''
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        const chunk = decoder.decode(value, { stream: true })
-        for (const line of chunk.split('\n')) {
-          if (line.startsWith('0:')) {
-            try {
-              const raw = JSON.parse(line.slice(2))
-              assistantText += raw
-            } catch {
-              // non-text chunk — skip
-            }
-          }
-        }
+        assistantText += decoder.decode(value, { stream: true })
+        setMessages((prev) => {
+          const updated = [...prev]
+          updated[updated.length - 1] = { role: 'assistant', content: assistantText }
+          return updated
+        })
       }
 
       if (!assistantText) {
         throw new Error('Empty response from AI')
       }
-
-      setMessages([...next, { role: 'assistant', content: assistantText }])
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         setSendError('Request timed out. Please try again.')
