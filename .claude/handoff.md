@@ -1,109 +1,87 @@
 # Handoff — Persona Platform
-Updated: 2026-04-23
+Updated: 2026-04-25
 
 ## Completed This Session
-- Phase 9: Sales Enablement — landing page, GDPR pages (/privacy, /terms, /subprocessors), data export + soft-delete API, migration 0003
-- Deployed to Vercel: https://personaproject-one.vercel.app
-- Fixed deploy blockers: lazy Resend init (was crashing cold-start), auth baseURL
-- `/personas` page for all users (grid → click → chat), added to nav
-- Nav: Dashboard · Personas · Match · Training · Admin (admin-only)
-- Dashboard: replaced "Phase 1 complete" placeholder with 4 feature nav cards
-- Auto-k clustering: `optimalK()` via silhouette score, picks 3–10 based on data
-- Admin UI: "Auto (recommended)" as default k option
-- Survey: 6 optional demographic questions (age, relationship, children, tenure, work_style, level)
-- Cluster fn: aggregates demographics per cluster, enriches Groq prompt → personas have age/family/role context
-- Personas store demographics in `extendedProfile.demographics`
+- Phase 10: Default Training Library — 6 built-in manager personas × 3 difficulty scenarios each (18 total)
+- Scoring upgrade: single Groq call, 1-5 scale (research-backed), GoalAchievement dimension (30% weight), Zod validation, letter grades A-F
+- Security fixes: persona ownership check (P0), trainingSessions tenant isolation, companyId column added
+- Chat efficiency: maxTokens 400, temp 0.55, scenario context in system prompt (not injected message)
+- DB migration 0004: nullable personaId, defaultPersonaId, companyId, 7 performance indexes
+- UX: active nav route indicator, polling timeout (3min), error recovery screen, AbortController on chat requests
+- NavLinks refactored to client component for active state detection
 
 ## Last Commit
-`d11147cb` — feat: auto-k clustering + demographic survey questions + rich persona profiles
+`1bb3e262` — feat: Phase 10 — default training library + scoring upgrade
 Branch: `phase/1-foundation`
 GitHub: https://github.com/arieldre/personaproject (pushed ✅)
 
 ## Deploy Status
 **LIVE** → https://personaproject-one.vercel.app
+Latest deploy: `personaproject-truyq2lqs-arararar34-gmailcoms-projects.vercel.app`
 Vercel project: `arararar34-gmailcoms-projects/personaproject`
 GitHub auto-deploy: NOT connected yet — go to vercel.com/…/settings/git and authorize GitHub app
 
 ## Demo Credentials
 - Login: https://personaproject-one.vercel.app/login
 - Email: admin@acme-demo.com / Password: AcmeDemo123!
-- Survey: https://personaproject-one.vercel.app/survey/ACME2026
-- Re-seed local: `npm run seed` (idempotent, now uses auto-k)
+- Training: https://personaproject-one.vercel.app/training (default library visible to all users)
 
-## Next Actions (priority order)
-1. **GitHub auto-deploy**: vercel.com/…/settings/git → Connect GitHub repo (one-click OAuth)
-2. **Inngest keys**: Set INNGEST_EVENT_KEY + INNGEST_SIGNING_KEY on Vercel → clustering and grading jobs will fire
-3. **Google OAuth**: Set GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET → enable Google login
-4. **Phase 10: Default Training Library** ← NEXT CODING SESSION (see spec below)
+## Architecture — What Was Built
 
-## Phase 10 Spec — Default Training Library
+### Default Personas (lib/training/default-personas.ts)
+6 static personas (no DB, no Groq): HR Partner (Jordan Hayes), Sales Prospect (Marcus Reed),
+Engineering Lead (Priya Sharma), Direct Manager (Alex Chen), Underperformer (Tyler Brooks),
+Frustrated Stakeholder (Diana Kowalski). IDs: `'default:hr-partner'` etc.
 
-### Goal
-Ship 6 built-in manager training personas (no company survey needed), each with 3 scenarios (easy/medium/hard), live AI chat, and a scored debrief at the end. Works for any user on any plan — no admin setup required.
+### Scenarios (lib/training/scenarios.ts)
+24 total: 6 legacy + 18 new (6 archetypes × easy/medium/hard).
+New scenarios have `personaId: 'default:hr-partner'` etc.
+`getScenariosForPersona(personaId)` helper added.
 
-### The 6 Personas (present to Ariel for final pick — swap any)
-| # | Persona | Core tension |
-|---|---------|-------------|
-| 1 | **The HR Partner** | Policy disputes, sensitive disclosures, accommodation requests |
-| 2 | **The Sales Prospect** | Objection handling, price negotiation, deal rescue |
-| 3 | **The Engineering Lead** | Technical disagreements, deadline pressure, scope creep |
-| 4 | **Your Direct Manager** | Asking for raise/promotion, pushing back on deadlines, handling public criticism |
-| 5 | **The Underperformer** | First warning → PIP delivery → letting go (3-difficulty arc) |
-| 6 | **The Frustrated Stakeholder** | Communicating delays, budget overruns, project failure recovery |
+### Scoring (lib/inngest/functions/grade.ts)
+- Single Groq call, temperature=0
+- 1-5 integer scale, converted to 0-100: `((score-1)/4)*100`
+- 5 dimensions: goalAchievement(30%), communicationClarity(20%), empathyListening(20%), problemSolving(15%), professionalism(15%)
+- Each dimension: `{ score, reasoning }` — reasoning before score (G-Eval CoT pattern)
+- `overallFeedback` string (2-3 sentences)
+- Letter grades: A≥85, B≥70, C≥55, D≥40, F<40
+- Zod validation on all LLM output
+- Tenant isolation fix: session loaded with `AND company_id = ?`
 
-Rationale: covers the 6 highest-frequency difficult conversations in manager training literature (HR, Sales, Eng, Up/Down/Across). Ariel can swap 5 or 6 if another archetype fits better.
+### Chat route (app/api/chat/[personaId]/route.ts)
+- `personaId.startsWith('default:')` → skip DB lookup, load from DEFAULT_PERSONAS_MAP
+- `?scenarioId=` query param → appended to system prompt (research: more token-efficient than user message injection)
+- Default persona: no conversation DB persistence
+- maxOutputTokens: 400, temperature: 0.55
 
-### Scenarios per Persona (3 each = 18 total)
-Each difficulty must have: title, description (what the manager needs to achieve), systemPromptSuffix (how the AI character behaves, what softens/hardens them), and a 4-dimension rubric.
+### Grade route (app/api/training/grade/route.ts)
+- Validates persona ownership (P0 security fix: `AND company_id = user.companyId`)
+- Default personas: validated against static map
+- Stores `personaId: null` + `defaultPersonaId: 'default:hr-partner'` for defaults
 
-**Difficulty contract:**
-- Easy: one clear issue, cooperative counterpart, single resolution path
-- Medium: counterpart pushes back, ambiguity in right answer, 2+ valid paths
-- Hard: emotional stakes, legal/ethical edge, counterpart actively resists — requires all 4 rubric dimensions simultaneously
+## Remaining Gaps — Security (from review agents)
+- **User export route**: conversations not scoped to company (P1)
+- **Match route**: responseId lookup has no company isolation (P1)
+- **Rate limiter**: in-memory, resets on restart, multi-instance bypassable (P2)
+- **JWT claims**: not validated against DB on every request (P2)
+- Cross-tenant isolation E2E test: still TODO/fixme in admin-jobs.spec.ts
 
-### Scoring mechanic (deepen the existing grade Inngest fn)
-Current rubric: communication · empathy · problemSolving · professionalism (all qualitative text).
-Upgrade to: Groq returns numeric scores 1–10 per dimension + a 1-sentence "what you did well" + "what to improve" per dimension.
-Final grade = weighted average: communication 30% · empathy 25% · problemSolving 25% · professionalism 20%
-Letter grades: A 90–100 · B 80–89 · C 70–79 · D 60–69 · F <60
-Show debrief card at end of session: overall score, per-dimension bars, strengths/improvements, replay option.
-
-### What to build
-1. `lib/training/default-personas.ts` — 6 static persona objects (no DB, no company, no Groq generation needed). Each has: id, name, tagline, avatar color, systemPrompt.
-2. `lib/training/scenarios.ts` — extend existing file: add 18 new scenarios covering the 6 archetypes × 3 difficulties. Keep existing 6 scenarios.
-3. `app/(app)/training/page.tsx` — redesign: show "Default Library" section (6 persona cards) + "Your Company Personas" section (existing). Click persona → scenario picker → chat.
-4. `app/(app)/training/[scenarioId]/page.tsx` — pass `personaId` query param for default personas (no DB lookup needed, use static object).
-5. Grade Inngest fn (`lib/inngest/functions/grade.ts`) — upgrade prompt to return numeric scores per dimension. Update `trainingSessions` schema if `score` field not numeric yet.
-6. Debrief UI — after grading completes, show score card with per-dimension bars and letter grade.
-
-### Data model note
-Default personas are static (hardcoded, no DB row). Pass `personaId: 'default:hr-partner'` etc. The grade fn already accepts personaId — just add a branch: if personaId starts with `'default:'`, load from static map instead of DB.
-
-### Research needed at session start
-- Read existing `lib/training/scenarios.ts` (done — 2 archetypes × 3 difficulties, good rubric pattern to follow)
-- Read existing grade Inngest fn to understand current scoring output format
-- Read `app/(app)/training/` pages to understand current UI flow before redesigning
-- Check `trainingSessions` schema for score column type
-
-## Remaining Gaps
-- GOOGLE_CLIENT_ID/SECRET: email/pw login works, but Google button broken
-- INNGEST keys: clustering won't fire in production (works locally via seed script)
-- Cross-tenant isolation E2E test: not written
-- Billing: not started
+## Remaining Gaps — Features
+- GOOGLE_CLIENT_ID/SECRET: email/pw login works, Google button broken
+- INNGEST keys: clustering/grading won't fire in production (works via seed locally)
+- Billing/Stripe: not started
 
 ## Key Env Facts
 - Supabase: `zkvzsoshpxicnpzbkdty` / eu-west-1 / pooler port 6543
+- Migration 0004 applied ✅ (nullable personaId, defaultPersonaId, companyId on trainingSessions, 7 indexes)
 - GROQ_API_KEY, GROQ_MODEL, DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL: all set on Vercel ✅
-- migration 0003 (deleted_at column): applied ✅
+
+## Next Actions (priority order)
+1. **Set INNGEST keys on Vercel** → clustering + grading will fire in production
+2. **Fix security gaps**: user export + match route company isolation (P1s from security review)
+3. **Cross-tenant E2E test**: implement test.fixme in admin-jobs.spec.ts
+4. **GitHub auto-deploy**: vercel.com/…/settings/git → Connect GitHub repo
 
 ## Phase Status
 1 Foundation ✅ · 2 Survey ✅ · 3 Inngest ✅ · 4 Admin ✅ · 5 Clustering ✅
-6 Chat ✅ · 7 Hero Match ✅ · 8 Training ✅ · 9 Sales Enablement ✅
-
-## Architecture Notes
-- optimalK(): silhouette score, k in [3, min(10, n/2)], 3 attempts per k
-- Demographics jsonb on questionnaire_responses — already existed in schema
-- Persona extendedProfile.demographics = Groq-generated demographic description
-- Match: cosine similarity mapped (sim+1)/2*100 → 0-100% compatibility
-- Email (Resend): lazy-init via getResend() — returns null if key absent, safe with no key set
-- Better Auth baseURL: reads BETTER_AUTH_URL env var first, falls back to NEXT_PUBLIC_APP_URL
+6 Chat ✅ · 7 Hero Match ✅ · 8 Training ✅ · 9 Sales Enablement ✅ · 10 Training Library ✅
