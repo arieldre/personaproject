@@ -5,28 +5,18 @@ import { SCENARIOS } from '@/lib/training/scenarios'
 import { DEFAULT_PERSONAS } from '@/lib/training/default-personas'
 
 const difficultyBadge: Record<string, string> = {
-  beginner: 'bg-green-500/15 text-green-400',
-  intermediate: 'bg-yellow-500/15 text-yellow-400',
-  advanced: 'bg-red-500/15 text-red-400',
   easy: 'bg-green-500/15 text-green-400',
   medium: 'bg-yellow-500/15 text-yellow-400',
   hard: 'bg-red-500/15 text-red-400',
 }
 
 const difficultyLabel: Record<string, string> = {
-  beginner: 'Beginner',
-  intermediate: 'Intermediate',
-  advanced: 'Advanced',
   easy: 'Easy',
   medium: 'Medium',
   hard: 'Hard',
 }
 
-// Scenarios that belong to the default persona library
 const defaultScenarios = SCENARIOS.filter((s) => s.personaId?.startsWith('default:'))
-
-// Legacy scenarios without a persona assignment
-const legacyScenarios = SCENARIOS.filter((s) => !s.personaId)
 
 export default async function TrainingPage() {
   const session = await getServerSession()
@@ -70,7 +60,7 @@ export default async function TrainingPage() {
                   <p className="text-xs text-neutral-400 mb-4 leading-relaxed">{persona.tagline}</p>
 
                   {/* Difficulty links */}
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mb-2">
                     {personaScenarios.map((s) => (
                       <Link
                         key={s.id}
@@ -82,45 +72,20 @@ export default async function TrainingPage() {
                       </Link>
                     ))}
                   </div>
+
+                  {/* Consult link */}
+                  <Link
+                    href={`/consult/${encodeURIComponent(persona.id)}`}
+                    data-testid="consult-link"
+                    className="block w-full text-center py-1.5 rounded-lg text-xs font-medium text-violet-400 border border-violet-500/30 hover:border-violet-500/70 hover:bg-violet-500/5 transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-1 focus:ring-offset-neutral-900"
+                  >
+                    Consult →
+                  </Link>
                 </div>
               )
             })}
           </div>
         </div>
-
-        {/* ── Company Scenarios (legacy) ── */}
-        {legacyScenarios.length > 0 && (
-          <div>
-            <h2 className="text-lg font-semibold text-white mb-1">Classic Scenarios</h2>
-            <p className="text-neutral-400 text-sm mb-6">
-              General manager training scenarios — practice with any of your company&apos;s personas.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {legacyScenarios.map((scenario) => (
-                <Link
-                  key={scenario.id}
-                  href={`/training/${scenario.id}`}
-                  data-testid="scenario-card"
-                  className="block rounded-xl border border-neutral-800 bg-neutral-900 p-5 hover:border-neutral-600 hover:bg-neutral-800/60 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-neutral-950"
-                >
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xs font-medium px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">
-                      {scenario.archetype}
-                    </span>
-                    <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded capitalize ${difficultyBadge[scenario.difficulty]}`}
-                    >
-                      {difficultyLabel[scenario.difficulty]}
-                    </span>
-                  </div>
-                  <h2 className="text-sm font-semibold text-white mb-2 leading-snug">{scenario.title}</h2>
-                  <p className="text-xs text-neutral-400 leading-relaxed line-clamp-3">{scenario.description}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
 
       </div>
     </main>

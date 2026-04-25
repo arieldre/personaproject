@@ -41,24 +41,35 @@ export default async function PersonasPage() {
         ) : (
           <div className="grid sm:grid-cols-2 gap-4">
             {activePersonas.map((p) => (
-              <Link
+              <div
                 key={p.id}
-                href={`/chat/${p.id}`}
-                className="block rounded-xl border border-neutral-800 bg-neutral-900 hover:border-neutral-600 hover:bg-neutral-800 transition-colors px-6 py-5 group"
+                className="rounded-xl border border-neutral-800 bg-neutral-900 px-6 py-5"
               >
                 <div className="flex items-start justify-between gap-3 mb-2">
-                  <p className="font-semibold text-sm group-hover:text-white">{p.name}</p>
+                  <p className="font-semibold text-sm text-white">{p.name}</p>
                   {p.clusterSize != null && (
                     <span className="text-xs text-neutral-500 shrink-0 mt-0.5">{p.clusterSize} employees</span>
                   )}
                 </div>
                 {p.tagline && (
-                  <p className="text-xs text-neutral-400 mb-3">{p.tagline}</p>
+                  <p className="text-xs text-neutral-400 mb-4">{p.tagline}</p>
                 )}
-                <p className="text-xs text-blue-400 mt-4 group-hover:text-blue-300 transition-colors">
-                  Start conversation →
-                </p>
-              </Link>
+                <div className="flex gap-2 mt-3">
+                  <Link
+                    href={`/chat/${p.id}`}
+                    className="flex-1 text-center py-1.5 rounded-lg text-xs font-medium text-blue-400 border border-blue-500/30 hover:border-blue-500/70 hover:bg-blue-500/5 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    Chat →
+                  </Link>
+                  <Link
+                    href={`/consult/${p.id}`}
+                    data-testid="persona-consult-link"
+                    className="flex-1 text-center py-1.5 rounded-lg text-xs font-medium text-violet-400 border border-violet-500/30 hover:border-violet-500/70 hover:bg-violet-500/5 transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  >
+                    Consult →
+                  </Link>
+                </div>
+              </div>
             ))}
           </div>
         )}

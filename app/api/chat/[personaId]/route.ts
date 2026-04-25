@@ -47,12 +47,14 @@ export async function POST(
   // 3. Load persona — different paths for default vs company personas
   let systemPrompt: string
 
+  const mode = req.nextUrl.searchParams.get('mode') // 'consult' | null
+
   if (isDefaultPersona) {
     const defaultPersona = getDefaultPersona(personaId)
     if (!defaultPersona) {
       return new Response('Persona not found', { status: 404 })
     }
-    systemPrompt = defaultPersona.systemPrompt
+    systemPrompt = mode === 'consult' ? defaultPersona.consultSystemPrompt : defaultPersona.systemPrompt
   } else {
     // Company persona — enforce tenant isolation
     const [persona] = await db
@@ -64,13 +66,23 @@ export async function POST(
     if (!persona || persona.companyId !== user.companyId) {
       return new Response('Persona not found', { status: 404 })
     }
-    systemPrompt = persona.systemPrompt ?? 'You are a helpful workplace colleague.'
+
+    if (mode === 'consult') {
+      // Derive consult prompt from role + existing system prompt context
+      systemPrompt = `You are ${persona.name}, a domain expert and advisor in your field${persona.tagline ? ` — ${persona.tagline}` : ''}. Switch out of roleplay mode entirely. You are now acting as a consultant the user can ask questions to.
+
+Draw on deep expertise relevant to your role. Give direct, actionable advice. Share frameworks, specific language, and practical guidance. Be honest when something the user describes sounds risky or mistaken. Ask one clarifying question when context would meaningfully improve your answer.
+
+Background on who you are:
+${persona.systemPrompt ?? ''}`
+    } else {
+      systemPrompt = persona.systemPrompt ?? 'You are a helpful workplace colleague.'
+    }
   }
 
-  // 4. Append scenario context to system prompt if scenarioId is provided
-  // Research: scenario context belongs in system prompt, not injected as a user message
+  // 4. Append scenario context to system prompt — only in training mode, not consult
   const scenarioId = req.nextUrl.searchParams.get('scenarioId')
-  if (scenarioId) {
+  if (scenarioId && mode !== 'consult') {
     const scenario = getScenario(scenarioId)
     if (scenario) {
       systemPrompt += `\n\n## Training Scenario\n${scenario.systemPromptSuffix}`
