@@ -42,10 +42,11 @@ export async function GET(
     return NextResponse.json({ status: 'complete' })
   }
 
+  // Scope to company to prevent cross-tenant grade result leakage
   const [ts] = await db
     .select({ gradeResult: trainingSessions.gradeResult, overallScore: trainingSessions.overallScore })
     .from(trainingSessions)
-    .where(eq(trainingSessions.id, trainingSessionId))
+    .where(and(eq(trainingSessions.id, trainingSessionId), eq(trainingSessions.companyId, user.companyId)))
     .limit(1)
 
   return NextResponse.json({

@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { getServerSession } from '@/lib/auth/server'
 import { getScenario } from '@/lib/training/scenarios'
+import { getDefaultPersona } from '@/lib/training/default-personas'
 import { db } from '@/lib/db'
 import { personas } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
@@ -20,12 +21,30 @@ export default async function TrainingScenarioPage({ params }: Props) {
 
   const user = session.user as { id: string; companyId?: string }
 
-  const scenario = getScenario(scenarioId)
+  // scenarioId may be URL-encoded (e.g. 'default%3Ahr-partner%3Aeasy')
+  const decodedId = decodeURIComponent(scenarioId)
+  const scenario = getScenario(decodedId)
   if (!scenario) {
     notFound()
   }
 
-  // Load company's active personas — scoped to the user's company
+  // Default persona scenario — use static persona, no DB lookup needed
+  if (scenario.personaId?.startsWith('default:')) {
+    const defaultPersona = getDefaultPersona(scenario.personaId)
+    if (!defaultPersona) {
+      notFound()
+    }
+
+    return (
+      <TrainingSession
+        scenario={scenario}
+        personas={[]}
+        defaultPersona={{ id: defaultPersona.id, name: defaultPersona.name, role: defaultPersona.role, avatarColor: defaultPersona.avatarColor }}
+      />
+    )
+  }
+
+  // Legacy scenario — load company's active personas for the picker
   const activePersonas =
     user.companyId
       ? await db

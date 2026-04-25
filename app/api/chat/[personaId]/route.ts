@@ -5,11 +5,12 @@ import { db } from '@/lib/db'
 import { personas, conversations, messages } from '@/lib/db/schema'
 import { eq, and, desc } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
+import { getDefaultPersona } from '@/lib/training/default-personas'
+import { getScenario } from '@/lib/training/scenarios'
 
 export const maxDuration = 60
 
 // In-memory rate limiter: 20 messages per user per 60-second window.
-// Resets automatically when the window expires — no external dependency needed.
 const rateLimitMap = new Map<string, { count: number; windowStart: number }>()
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY })
@@ -18,7 +19,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ personaId: string }> }
 ) {
-  // 1. Auth — throws Response(401) if not authenticated
+  // 1. Auth
   let user: { id: string; companyId?: string }
   try {
     user = (await requireAuth()) as { id: string; companyId?: string }
@@ -27,6 +28,7 @@ export async function POST(
   }
 
   const { personaId } = await params
+  const isDefaultPersona = personaId.startsWith('default:')
 
   // 2. Parse body
   let clientMessages: { role: string; content: string }[]
@@ -42,62 +44,40 @@ export async function POST(
     return new Response('Invalid JSON body', { status: 400 })
   }
 
-  // 3. Load persona — tenant isolation: persona.companyId must match user.companyId
-  const [persona] = await db
-    .select()
-    .from(personas)
-    .where(eq(personas.id, personaId))
-    .limit(1)
+  // 3. Load persona — different paths for default vs company personas
+  let systemPrompt: string
 
-  if (!persona) {
-    return new Response('Persona not found', { status: 404 })
-  }
-  if (persona.companyId !== user.companyId) {
-    return new Response('Persona not found', { status: 404 })
-  }
-
-  // 4. Get or create conversation
-  let activeConversationId: string
-
-  if (conversationId) {
-    // Verify ownership: userId + personaId must match
-    const [existingConv] = await db
+  if (isDefaultPersona) {
+    const defaultPersona = getDefaultPersona(personaId)
+    if (!defaultPersona) {
+      return new Response('Persona not found', { status: 404 })
+    }
+    systemPrompt = defaultPersona.systemPrompt
+  } else {
+    // Company persona — enforce tenant isolation
+    const [persona] = await db
       .select()
-      .from(conversations)
-      .where(
-        and(
-          eq(conversations.id, conversationId),
-          eq(conversations.userId, user.id),
-          eq(conversations.personaId, personaId)
-        )
-      )
+      .from(personas)
+      .where(eq(personas.id, personaId))
       .limit(1)
 
-    if (!existingConv) {
-      return new Response('Conversation not found', { status: 404 })
+    if (!persona || persona.companyId !== user.companyId) {
+      return new Response('Persona not found', { status: 404 })
     }
-    activeConversationId = existingConv.id
-  } else {
-    // Auto-generate title from first user message (max 50 chars)
-    const firstUserMsg = clientMessages.find((m) => m.role === 'user')
-    const title = firstUserMsg
-      ? firstUserMsg.content.slice(0, 50)
-      : 'New conversation'
-
-    const [newConv] = await db
-      .insert(conversations)
-      .values({
-        personaId,
-        userId: user.id,
-        title,
-        lastMessageAt: new Date(),
-      })
-      .returning()
-
-    activeConversationId = newConv.id
+    systemPrompt = persona.systemPrompt ?? 'You are a helpful workplace colleague.'
   }
 
-  // 5. Rate limit: 20 messages per user per 60-second sliding window
+  // 4. Append scenario context to system prompt if scenarioId is provided
+  // Research: scenario context belongs in system prompt, not injected as a user message
+  const scenarioId = req.nextUrl.searchParams.get('scenarioId')
+  if (scenarioId) {
+    const scenario = getScenario(scenarioId)
+    if (scenario) {
+      systemPrompt += `\n\n## Training Scenario\n${scenario.systemPromptSuffix}`
+    }
+  }
+
+  // 5. Rate limit: 20 messages per user per 60-second window
   const now = Date.now()
   const windowMs = 60_000
   const existing = rateLimitMap.get(user.id)
@@ -108,62 +88,106 @@ export async function POST(
     }
     existing.count++
   } else {
-    // New window
     rateLimitMap.set(user.id, { count: 1, windowStart: now })
   }
 
-  // 6. Load last 20 messages from DB in chronological order
-  const dbMessages = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.conversationId, activeConversationId))
-    .orderBy(desc(messages.createdAt))
-    .limit(20)
+  // 6. Conversation persistence — skip for default personas (training mode, no DB FK)
+  let historyMessages: { role: 'user' | 'assistant'; content: string }[] = []
 
-  // Reverse so oldest-first for the LLM context
-  const historyMessages = dbMessages.reverse().map((m) => ({
-    role: m.role as 'user' | 'assistant',
-    content: m.content,
-  }))
+  if (!isDefaultPersona) {
+    let activeConversationId: string
 
-  // 7. Build the final user message with injection-defense delimiters
+    if (conversationId) {
+      const [existingConv] = await db
+        .select()
+        .from(conversations)
+        .where(
+          and(
+            eq(conversations.id, conversationId),
+            eq(conversations.userId, user.id),
+            eq(conversations.personaId, personaId)
+          )
+        )
+        .limit(1)
+
+      if (!existingConv) {
+        return new Response('Conversation not found', { status: 404 })
+      }
+      activeConversationId = existingConv.id
+    } else {
+      const firstUserMsg = clientMessages.find((m) => m.role === 'user')
+      const title = firstUserMsg ? firstUserMsg.content.slice(0, 50) : 'New conversation'
+
+      const [newConv] = await db
+        .insert(conversations)
+        .values({ personaId, userId: user.id, title, lastMessageAt: new Date() })
+        .returning()
+
+      activeConversationId = newConv.id
+    }
+
+    // Load last 8 messages for hybrid truncation (research recommendation)
+    const dbMessages = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, activeConversationId))
+      .orderBy(desc(messages.createdAt))
+      .limit(8)
+
+    historyMessages = dbMessages.reverse().map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    }))
+
+    // 7. Extract last user message with injection-defense delimiters
+    const lastUserMessage = [...clientMessages].reverse().find((m) => m.role === 'user')
+    if (!lastUserMessage) {
+      return new Response('No user message found', { status: 400 })
+    }
+    // Sanitize XML tags to prevent prompt injection breakout
+    const sanitized = lastUserMessage.content.replace(/<[^>]*>/g, '')
+    const wrappedUserMessage = `<user_message>${sanitized}</user_message>`
+
+    const result = streamText({
+      model: groq(process.env.GROQ_MODEL!),
+      system: systemPrompt,
+      messages: [...historyMessages, { role: 'user', content: wrappedUserMessage }],
+      maxOutputTokens: 400,
+      temperature: 0.55,
+      onFinish: async ({ text, usage }) => {
+        await db.insert(messages).values([
+          { conversationId: activeConversationId, role: 'user', content: lastUserMessage.content },
+          { conversationId: activeConversationId, role: 'assistant', content: text, tokensUsed: usage?.outputTokens ?? null },
+        ])
+        await db
+          .update(conversations)
+          .set({ lastMessageAt: new Date(), updatedAt: new Date() })
+          .where(eq(conversations.id, activeConversationId))
+      },
+    })
+
+    return result.toTextStreamResponse()
+  }
+
+  // Default persona path — no conversation DB persistence, just stream
   const lastUserMessage = [...clientMessages].reverse().find((m) => m.role === 'user')
   if (!lastUserMessage) {
     return new Response('No user message found', { status: 400 })
   }
-  const wrappedUserMessage = `<user_message>${lastUserMessage.content}</user_message>`
+  const sanitized = lastUserMessage.content.replace(/<[^>]*>/g, '')
 
-  // 8. Stream from Groq
+  // Pass the full client messages as history (training-session.tsx manages state)
+  const conversationHistory = clientMessages.slice(0, -1).map((m) => ({
+    role: m.role as 'user' | 'assistant',
+    content: m.content,
+  }))
+
   const result = streamText({
     model: groq(process.env.GROQ_MODEL!),
-    system: persona.systemPrompt ?? 'You are a helpful workplace colleague.',
-    messages: [
-      ...historyMessages,
-      { role: 'user', content: wrappedUserMessage },
-    ],
-    maxOutputTokens: 1000,
-
-    // 9. Persist messages + update conversation after stream completes
-    onFinish: async ({ text, usage }) => {
-      await db.insert(messages).values([
-        {
-          conversationId: activeConversationId,
-          role: 'user',
-          content: lastUserMessage.content,
-        },
-        {
-          conversationId: activeConversationId,
-          role: 'assistant',
-          content: text,
-          tokensUsed: usage?.outputTokens ?? null,
-        },
-      ])
-
-      await db
-        .update(conversations)
-        .set({ lastMessageAt: new Date(), updatedAt: new Date() })
-        .where(eq(conversations.id, activeConversationId))
-    },
+    system: systemPrompt,
+    messages: [...conversationHistory, { role: 'user', content: sanitized }],
+    maxOutputTokens: 400,
+    temperature: 0.55,
   })
 
   return result.toTextStreamResponse()

@@ -247,7 +247,11 @@ export const messages = pgTable('messages', {
 export const trainingSessions = pgTable('training_sessions', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  personaId: uuid('persona_id').notNull().references(() => personas.id, { onDelete: 'cascade' }),
+  companyId: uuid('company_id').references(() => companies.id, { onDelete: 'set null' }),
+  // Nullable — default library personas have no DB row
+  personaId: uuid('persona_id').references(() => personas.id, { onDelete: 'set null' }),
+  // Set when using a static default persona (e.g. 'default:hr-partner')
+  defaultPersonaId: varchar('default_persona_id', { length: 100 }),
   scenarioId: varchar('scenario_id', { length: 100 }).notNull(),
   messages: jsonb('messages').notNull(),
   gradeResult: jsonb('grade_result'),

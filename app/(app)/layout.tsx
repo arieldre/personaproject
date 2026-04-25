@@ -1,6 +1,6 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getServerSession } from '@/lib/auth/server'
+import { NavLinks } from './_components/nav-links'
 
 const roleLabel: Record<string, string | null> = {
   company_admin: 'Admin',
@@ -17,31 +17,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const u = session.user as { name?: string; role?: string }
   const label = roleLabel[u.role ?? ''] ?? null
+  const isAdmin = u.role === 'company_admin' || u.role === 'super_admin'
 
   return (
     <>
       <nav className="border-b border-neutral-800 bg-neutral-950 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-6">
           <span className="text-white font-semibold text-sm">Persona</span>
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="text-sm text-neutral-400 hover:text-white transition-colors">
-              Dashboard
-            </Link>
-            <Link href="/personas" className="text-sm text-neutral-400 hover:text-white transition-colors">
-              Personas
-            </Link>
-            <Link href="/match" className="text-sm text-neutral-400 hover:text-white transition-colors">
-              Match
-            </Link>
-            <Link href="/training" className="text-sm text-neutral-400 hover:text-white transition-colors">
-              Training
-            </Link>
-            {(u.role === 'company_admin' || u.role === 'super_admin') && (
-              <Link href="/admin/personas" className="text-sm text-neutral-400 hover:text-white transition-colors">
-                Admin
-              </Link>
-            )}
-          </div>
+          <NavLinks isAdmin={isAdmin} />
         </div>
         <div className="flex items-center gap-3">
           {u.name && <span className="text-neutral-400 text-sm">{u.name}</span>}

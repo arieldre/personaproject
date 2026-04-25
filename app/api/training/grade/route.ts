@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/server'
 import { db } from '@/lib/db'
-import { trainingSessions, jobs } from '@/lib/db/schema'
+import { trainingSessions, jobs, personas } from '@/lib/db/schema'
 import { inngest } from '@/lib/inngest/client'
+import { getDefaultPersona } from '@/lib/training/default-personas'
+import { eq, and } from 'drizzle-orm'
 
 export async function POST(req: NextRequest) {
   let user: { id: string; companyId?: string }
@@ -26,7 +28,6 @@ export async function POST(req: NextRequest) {
     scenarioId = body.scenarioId
     personaId = body.personaId
 
-
     if (!Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: 'messages must be a non-empty array' }, { status: 400 })
     }
@@ -40,18 +41,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  // Insert training session first to get its id
+  const isDefault = personaId.startsWith('default:')
+
+  // Verify persona ownership for company personas (P0 security fix)
+  if (!isDefault) {
+    const [persona] = await db
+      .select({ id: personas.id, companyId: personas.companyId })
+      .from(personas)
+      .where(and(eq(personas.id, personaId), eq(personas.companyId, user.companyId)))
+      .limit(1)
+
+    if (!persona) {
+      return NextResponse.json({ error: 'Persona not found' }, { status: 404 })
+    }
+  } else {
+    // Validate that the default persona ID is known
+    if (!getDefaultPersona(personaId)) {
+      return NextResponse.json({ error: 'Persona not found' }, { status: 404 })
+    }
+  }
+
+  // Insert training session — personaId is UUID for company personas, null for defaults
   const [session] = await db
     .insert(trainingSessions)
     .values({
       userId: user.id,
-      personaId,
+      companyId: user.companyId,
+      personaId: isDefault ? null : personaId,
+      defaultPersonaId: isDefault ? personaId : null,
       scenarioId,
       messages,
     })
     .returning({ id: trainingSessions.id })
 
-  // Insert job — companyId needed for tenant isolation in the Inngest function
   const [job] = await db
     .insert(jobs)
     .values({
@@ -64,7 +86,6 @@ export async function POST(req: NextRequest) {
     })
     .returning({ id: jobs.id })
 
-  // Send Inngest event — fire and forget; the function handles retries
   await inngest.send({
     name: 'training/grade.requested',
     data: {
