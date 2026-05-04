@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getServerSession } from '@/lib/auth/server'
 import { NavLinks } from './_components/nav-links'
+import { SupportWidget } from './_components/SupportWidget'
 
 const roleLabel: Record<string, string | null> = {
   company_admin: 'Admin',
@@ -39,6 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </nav>
       {children}
+      <SupportWidget />
     </>
   )
 }

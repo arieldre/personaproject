@@ -110,6 +110,9 @@ export const companies = pgTable('companies', {
   licensesUsed: integer('licenses_used').default(0),
   trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
   settings: jsonb('settings').default({}),
+  // Stripe billing — populated by webhook on checkout.session.completed
+  stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
+  stripeSubscriptionId: varchar('stripe_subscription_id', { length: 255 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   // No Drizzle FK here — circular dep with user. FK enforced in SQL migration.

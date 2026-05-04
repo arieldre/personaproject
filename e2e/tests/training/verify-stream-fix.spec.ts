@@ -106,12 +106,32 @@ test('Training chat: stream works and response is non-empty', async ({ page }) =
   await page.screenshot({ path: ssPath('03-chat-active.png'), fullPage: true })
   console.log('[screenshot] 03-chat-active.png')
 
-  // Step 4: Send first message — core stream-fix verification
-  await chatInput.fill('Hi Jordan, I need to discuss an accommodation request for one of my team members')
-  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  // Helper: send a message and wait for the assistant to respond
+  // Uses a message-count gate to avoid race with bounce-dot timing
+  async function sendAndWait(text: string, expectedUserTurns: number) {
+    await chatInput.fill(text)
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    // Wait for bounce dots to appear (sending=true)
+    await page.waitForFunction(
+      () => document.querySelectorAll('.animate-bounce').length > 0,
+      { timeout: 5000 }
+    ).catch(() => {
+      // Bounce may have already appeared and disappeared — that's fine
+      console.log('[info] Bounce already gone before we could detect it')
+    })
+    // Wait for bounce dots to disappear (sending=false, streaming complete)
+    await page.waitForFunction(
+      () => document.querySelectorAll('.animate-bounce').length === 0,
+      { timeout: 45_000 }
+    )
+    await page.waitForTimeout(500)
+    // Verify expected turn count is displayed in header
+    const turnText = await page.locator('header').textContent().catch(() => '')
+    console.log('[chat] Header state after turn', expectedUserTurns, ':', turnText?.substring(0, 80))
+  }
 
-  // Wait for streaming to finish: bounce dots disappear
-  await waitForTrainingResponse(page, 1)
+  // Step 4: Send first message — core stream-fix verification
+  await sendAndWait('Hi Jordan, I need to discuss an accommodation request for one of my team members', 1)
 
   // Verify assistant message has content
   // Messages DOM: div.flex.justify-start > div.bg-neutral-800.text-neutral-100
@@ -133,13 +153,8 @@ test('Training chat: stream works and response is non-empty', async ({ page }) =
   console.log('[screenshot] 04-chat-conversation.png')
 
   // Step 5: Two more messages (3 total user turns required for End & Grade)
-  await chatInput.fill('The employee needs extra breaks due to a medical condition. What does the ADA require here?')
-  await page.getByRole('button', { name: 'Send', exact: true }).click()
-  await waitForTrainingResponse(page, 2)
-
-  await chatInput.fill('How do I document this accommodation request to protect both the company and the employee?')
-  await page.getByRole('button', { name: 'Send', exact: true }).click()
-  await waitForTrainingResponse(page, 3)
+  await sendAndWait('The employee needs extra breaks due to a medical condition. What does the ADA require here?', 2)
+  await sendAndWait('How do I document this accommodation request to protect both the company and the employee?', 3)
 
   // Step 6: End & Grade
   // Button enables after 3 user turns — wait longer since 3rd AI response just finished

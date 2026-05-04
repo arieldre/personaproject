@@ -201,16 +201,28 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <Link
-                  href="/login"
-                  className={`text-center py-2 rounded-lg text-xs font-semibold transition-colors ${
-                    t.highlight
-                      ? 'bg-white text-neutral-950 hover:bg-neutral-100'
-                      : 'border border-neutral-700 text-white hover:bg-neutral-800'
-                  }`}
-                >
-                  {t.cta}
-                </Link>
+                {t.name === 'Enterprise' ? (
+                  <a
+                    href="mailto:sales@personaplatform.com"
+                    className="text-center py-2 rounded-lg text-xs font-semibold border border-neutral-700 text-white hover:bg-neutral-800 transition-colors"
+                  >
+                    {t.cta}
+                  </a>
+                ) : (
+                  <form action="/api/billing/checkout" method="POST">
+                    <input type="hidden" name="tier" value={t.name.toLowerCase()} />
+                    <button
+                      type="submit"
+                      className={`w-full py-2 rounded-lg text-xs font-semibold transition-colors ${
+                        t.highlight
+                          ? 'bg-white text-neutral-950 hover:bg-neutral-100'
+                          : 'border border-neutral-700 text-white hover:bg-neutral-800'
+                      }`}
+                    >
+                      {t.cta}
+                    </button>
+                  </form>
+                )}
               </div>
             ))}
           </div>

@@ -38,17 +38,30 @@ export function NavLinks({ isAdmin }: Props) {
         </Link>
       ))}
       {isAdmin && (
-        <Link
-          href="/admin/personas"
-          aria-current={pathname.startsWith('/admin') ? 'page' : undefined}
-          className={`text-sm transition-colors ${
-            pathname.startsWith('/admin')
-              ? 'text-white font-medium'
-              : 'text-neutral-400 hover:text-white'
-          }`}
-        >
-          Admin
-        </Link>
+        <>
+          <Link
+            href="/admin/personas"
+            aria-current={pathname.startsWith('/admin') ? 'page' : undefined}
+            className={`text-sm transition-colors ${
+              pathname.startsWith('/admin')
+                ? 'text-white font-medium'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            Admin
+          </Link>
+          <Link
+            href="/settings/billing"
+            aria-current={pathname.startsWith('/settings/billing') ? 'page' : undefined}
+            className={`text-sm transition-colors ${
+              pathname.startsWith('/settings/billing')
+                ? 'text-white font-medium'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            Billing
+          </Link>
+        </>
       )}
     </div>
   )

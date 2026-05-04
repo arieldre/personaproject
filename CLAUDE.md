@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # Persona Platform — Project Guide
 
 ## What This Is
@@ -64,8 +66,20 @@ Phase 6 (Chat) MUST ship before Phase 7 (Hero).
 
 - Default model: `GROQ_MODEL` env var (currently Llama 3.3-70B)
 - Streaming: Route Handler + `streamText().toDataStreamResponse()` + `useChat` on frontend
-- Hard token cap per turn + last-20-turns history truncation (cost control)
+- Hard token cap per turn + last-8-turns history truncation (cost control; Phase 10 reduced from 20)
 - Fallback chain in env: `GROQ_MODEL_FALLBACK`
+- Chat tuning: `maxOutputTokens: 400`, `temperature: 0.55` for personas; `temperature: 0` for grader
+- Scenario context: inject via `?scenarioId=` query param → append to system prompt (NOT prefix user message)
+
+## Default Training Library (Phase 10)
+
+- 6 static personas in `lib/training/default-personas.ts` — no DB, no Groq, no auth
+- IDs prefixed `'default:'` (e.g. `'default:hr-partner'`) — no UUID, stored in `defaultPersonaId` varchar column
+- Chat route: `personaId.startsWith('default:')` → skip DB lookup, load from `DEFAULT_PERSONAS_MAP`
+- Grade route: default personas validated against static map; stored as `personaId: null` + `defaultPersonaId: 'default:hr-partner'`
+- `encodeURIComponent` on all links containing colon IDs; `decodeURIComponent` on receiving page
+- Scoring: single Groq call, 1-5 integer scale, 5 dimensions, GoalAchievement at 30% weight
+- Grader stores `{ reasoning, score }` per dimension (reasoning first = G-Eval CoT pattern)
 
 ## Testing
 
