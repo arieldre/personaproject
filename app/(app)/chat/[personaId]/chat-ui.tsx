@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 
 interface Conversation {
   id: string
@@ -67,8 +68,13 @@ export default function ChatUI({
         return
       }
 
+      if (!resp.body) {
+        setError('No response stream')
+        setIsLoading(false)
+        return
+      }
       // Stream the text response chunk by chunk
-      const reader = resp.body!.getReader()
+      const reader = resp.body.getReader()
       const decoder = new TextDecoder()
       let assistantText = ''
       setMessages(prev => [...prev, { role: 'assistant', content: '' }])
@@ -142,7 +148,13 @@ export default function ChatUI({
 
       {/* Main chat */}
       <main className="flex flex-1 flex-col">
-        <header className="flex items-center border-b border-neutral-800 px-6 py-4">
+        <header className="flex items-center border-b border-neutral-800 px-6 py-4 gap-4">
+          <Link
+            href="/personas"
+            className="text-sm text-neutral-400 no-underline hover:underline shrink-0"
+          >
+            ← Personas
+          </Link>
           <h1 className="text-base font-semibold">
             Chat with <span className="text-blue-400">{persona.name}</span>
           </h1>

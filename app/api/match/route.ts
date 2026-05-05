@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/server'
 import { db } from '@/lib/db'
-import { questionnaires, questionnaireResponses } from '@/lib/db/schema'
+import { questionnaires, questionnaireResponses, user as userTable } from '@/lib/db/schema'
 import { eq, and, isNotNull } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
+
+// Session may be cached from before company_id was linked — fall back to DB lookup.
+async function resolveCompanyId(userId: string, sessionCompanyId?: string): Promise<string | null> {
+  if (sessionCompanyId) return sessionCompanyId
+  const [row] = await db
+    .select({ companyId: userTable.companyId })
+    .from(userTable)
+    .where(eq(userTable.id, userId))
+  return row?.companyId ?? null
+}
 
 // GET /api/match — list employees (completed responses with vectors) for this company
 export async function GET() {
@@ -13,7 +23,8 @@ export async function GET() {
   } catch {
     return new Response('Unauthorized', { status: 401 })
   }
-  if (!user.companyId) return NextResponse.json({ error: 'no company' }, { status: 400 })
+  const companyId = await resolveCompanyId(user.id, user.companyId)
+  if (!companyId) return NextResponse.json({ error: 'no company' }, { status: 400 })
 
   const responses = await db
     .select({
@@ -25,7 +36,7 @@ export async function GET() {
     .innerJoin(questionnaires, eq(questionnaireResponses.questionnaireId, questionnaires.id))
     .where(
       and(
-        eq(questionnaires.companyId, user.companyId),
+        eq(questionnaires.companyId, companyId),
         eq(questionnaireResponses.status, 'completed'),
         isNotNull(questionnaireResponses.personalityVector),
       )
@@ -42,7 +53,8 @@ export async function POST(req: NextRequest) {
   } catch {
     return new Response('Unauthorized', { status: 401 })
   }
-  if (!user.companyId) return NextResponse.json({ error: 'no company' }, { status: 400 })
+  const companyId = await resolveCompanyId(user.id, user.companyId)
+  if (!companyId) return NextResponse.json({ error: 'no company' }, { status: 400 })
 
   let responseId: string
   try {
@@ -63,7 +75,7 @@ export async function POST(req: NextRequest) {
     .where(
       and(
         eq(questionnaireResponses.id, responseId),
-        eq(questionnaires.companyId, user.companyId),
+        eq(questionnaires.companyId, companyId),
       )
     )
 
@@ -76,7 +88,7 @@ export async function POST(req: NextRequest) {
   const rows = await db.execute(sql`
     select * from match_employee_to_personas(
       ${responseId}::uuid,
-      ${user.companyId}::uuid,
+      ${companyId}::uuid,
       5
     )
   `)

@@ -80,11 +80,9 @@ test.describe('Billing page', () => {
     await expect(page.getByTestId('billing-success-banner')).not.toBeVisible()
   })
 
-  test.skip(
-    true,
-    // Middleware redirects unauthenticated users to /login, not /dashboard.
-    // There is no role-based guard — all authenticated users can reach /settings/billing.
-    // Unskip and implement if a role guard is added in future (e.g. admin-only billing access).
-    'Non-admin redirect: no role-based guard exists on /settings/billing — only auth guard (→ /login)',
-  )
+  test('non-admin redirect — no role guard yet', async () => {
+    // Middleware redirects unauthenticated users to /login — no role-based guard on /settings/billing.
+    // Unskip when an admin-only guard is added.
+    test.skip(true, 'No role-based guard on /settings/billing — only auth guard')
+  })
 })

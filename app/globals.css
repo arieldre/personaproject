@@ -24,3 +24,32 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Light mode overrides — toggled via html.light class */
+html.light {
+  color-scheme: light;
+}
+html.light body { background-color: #f8fafc; color: #0f172a; }
+html.light .bg-neutral-950 { background-color: #f8fafc !important; }
+html.light .bg-neutral-900 { background-color: #f1f5f9 !important; }
+html.light .bg-neutral-800 { background-color: #e2e8f0 !important; }
+html.light .bg-neutral-950\/50, html.light .bg-neutral-900\/50 { background-color: rgba(241,245,249,0.5) !important; }
+html.light .text-white { color: #0f172a !important; }
+html.light .text-neutral-400 { color: #475569 !important; }
+html.light .text-neutral-500 { color: #64748b !important; }
+html.light .text-neutral-600 { color: #94a3b8 !important; }
+html.light .border-neutral-800 { border-color: #cbd5e1 !important; }
+html.light .border-neutral-700 { border-color: #94a3b8 !important; }
+html.light .bg-neutral-700 { background-color: #cbd5e1 !important; }
+html.light input, html.light textarea, html.light select { background-color: #e2e8f0 !important; color: #0f172a !important; }
+/* Preserve white text on colored buttons in light mode */
+html.light .bg-blue-600,
+html.light .bg-blue-500 { color: #ffffff !important; }
+html.light .bg-violet-600,
+html.light .bg-violet-500 { color: #ffffff !important; }
+
+/* Persona profile redesign — light mode overrides */
+html.light .border-neutral-700\/50 { border-color: rgba(148,163,184,0.5) !important; }
+html.light .bg-neutral-800\/40 { background-color: rgba(226,232,240,0.5) !important; }
+html.light .text-neutral-300 { color: #334155 !important; }
+html.light .text-neutral-200 { color: #1e293b !important; }

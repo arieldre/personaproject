@@ -27,7 +27,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
-    minPasswordLength: 4,
+    minPasswordLength: 8,
     sendResetPassword: async ({ user: u, url }) => {
       const { sendPasswordResetEmail } = await import('@/lib/email')
       await sendPasswordResetEmail({ to: u.email, resetUrl: url })
@@ -66,7 +66,12 @@ export const auth = betterAuth({
     },
   },
 
-  trustedOrigins: [process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'],
+  trustedOrigins: [
+    process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+    ...(process.env.NODE_ENV === 'development'
+      ? ['http://localhost:3000', 'http://localhost:3001']
+      : []),
+  ],
 })
 
 export type Session = typeof auth.$Infer.Session

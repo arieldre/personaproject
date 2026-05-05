@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from '@/lib/auth/server'
 import { NavLinks } from './_components/nav-links'
 import { SupportWidget } from './_components/SupportWidget'
+import { ThemeToggle } from './_components/ThemeToggle'
 
 const roleLabel: Record<string, string | null> = {
   company_admin: 'Admin',
@@ -29,6 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
         <div className="flex items-center gap-3">
           {u.name && <span className="text-neutral-400 text-sm">{u.name}</span>}
+          <ThemeToggle />
           {label && (
             <span
               data-testid="role-badge"
