@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth/server'
+import { requireRole } from '@/lib/auth/server'
 import { getStripe } from '@/lib/stripe'
 import { db } from '@/lib/db'
 import { companies } from '@/lib/db/schema'
@@ -13,9 +13,9 @@ export async function POST() {
 
   let user: { id: string; email: string; companyId?: string }
   try {
-    user = (await requireAuth()) as { id: string; email: string; companyId?: string }
+    user = (await requireRole('company_admin')) as { id: string; email: string; companyId?: string }
   } catch {
-    return new Response('Unauthorized', { status: 401 })
+    return new Response('Forbidden', { status: 403 })
   }
 
   if (!user.companyId) {
