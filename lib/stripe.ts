@@ -3,7 +3,7 @@ import Stripe from 'stripe'
 // Lazy-init — never instantiate at module scope (BP-045: cold-start crash if key absent)
 function getStripe(): Stripe | null {
   if (!process.env.STRIPE_SECRET_KEY) return null
-  return new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2025-03-31.basil' })
+  return new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2025-02-24.acacia' })
 }
 
 export { getStripe }
