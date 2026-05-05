@@ -11,6 +11,7 @@ import {
   jsonb,
   inet,
   customType,
+  index,
 } from 'drizzle-orm/pg-core'
 import { relations, sql } from 'drizzle-orm'
 
@@ -117,7 +118,10 @@ export const companies = pgTable('companies', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   // No Drizzle FK here — circular dep with user. FK enforced in SQL migration.
   createdBy: text('created_by'),
-})
+}, (t) => [
+  // Index for webhook lookups by Stripe customer ID (avoids full table scan on billing events)
+  index('companies_stripe_customer_id_idx').on(t.stripeCustomerId),
+])
 
 // ─── User Invitations ──────────────────────────────────────────────────────
 

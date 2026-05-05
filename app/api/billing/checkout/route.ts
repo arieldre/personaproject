@@ -29,6 +29,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid tier — must be starter, growth, or enterprise' }, { status: 400 })
   }
 
+  if (!user.companyId) {
+    return NextResponse.json({ error: 'account not associated with a company' }, { status: 400 })
+  }
+
   const priceId = PRICE_IDS[tier]
   if (!priceId) {
     return NextResponse.json({ error: `price ID not configured for tier: ${tier}` }, { status: 503 })

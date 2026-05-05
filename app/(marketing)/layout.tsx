@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import CookieBanner from './_components/CookieBanner'
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,6 +13,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         </Link>
       </nav>
       {children}
+      <CookieBanner />
     </div>
   )
 }

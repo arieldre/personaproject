@@ -1,98 +1,135 @@
 # Handoff — Persona Platform
-Updated: 2026-04-25
+# Session: 2026-05-04 | Last commit: 50c23070
 
 ## Completed This Session
-### Phase 11: Consult Agents
-- Each persona (default + company) now has "Consult" mode alongside "Train"
-- `/consult/[personaId]` page — free expert chat, no grading, violet UI
-- Training page: "Consult →" button on each default persona card
-- Personas page: "Chat →" and "Consult →" buttons side by side
-- Chat route: `?mode=consult` loads consultSystemPrompt, skips scenario injection
-- Company personas: auto-derived consult prompt from tagline + systemPrompt (no migration)
 
-### Persona Enrichment
-- All 6 default personas enriched with age, family, personal quirks, speech patterns
-- `PERSONA_GROUNDING_HEADER`: injected into all training systemPrompts — enforces organic details, no breaking character
-- `persistentReminder`: appended to system prompt when conversation ≥4 turns (anti-drift, replaces fragile fake user/assistant injection)
-- Removed 6 legacy scenarios (conflict-resolution, performance-feedback) — superseded by default library
+### Stripe Billing (full flow)
+- `lib/stripe.ts` — lazy-init `getStripe()`, `PRICE_IDS` from env vars
+- `app/api/billing/checkout/route.ts` — creates Checkout Session with company_id metadata
+- `app/api/billing/portal/route.ts` — opens Customer Portal via stripe_customer_id
+- `app/api/billing/webhook/route.ts` — 4 events: checkout.session.completed, subscription.updated, subscription.deleted, invoice.payment_failed
+- `app/(app)/settings/billing/page.tsx` — Server Actions startCheckout/openPortal; 3 states: trial/inactive (tier cards), active (manage button), suspended (payment failed)
+- `lib/db/schema/index.ts` — added stripeCustomerId + stripeSubscriptionId columns
+- `supabase/migrations/0006_stripe_billing.sql` — migration for those columns
+- Billing link added to admin nav; landing page pricing CTAs now POST to Stripe
 
-### Critical Bug Fixes
-- **Stream parsing fix**: training-session.tsx was filtering for `0:` prefix (dataStream) but route returns plain text → empty responses in training chat. Fixed to read raw bytes.
+### Groq Support Agent
+- `lib/support/knowledge-base.ts` — 176-line system prompt covering all features + escalation trigger
+- `app/api/support/route.ts` — streaming, model rotation (8b default, 70b for complex/long), DB rate limit, [ESCALATE] → Resend email
+- `app/(app)/_components/SupportWidget.tsx` — "?" button bottom-right, 320×420px panel, quick-action buttons, streaming via ReadableStream
+- `app/(app)/layout.tsx` — SupportWidget rendered for all authenticated users
 
-### Security Fixes (from independent review agent)
-- **P1**: export route missing `try/catch` on requireAuth (500 instead of 401) — fixed
-- **P1**: export route spreading full user row including internal fields — now allowlists id/name/email/createdAt
-- **P1**: chat route sanitizing only last message, not history — now strips XML from all turns
-- **P1**: rate-limit failing open on DB error (→ unbounded LLM spend) — now fails closed
-- **P1**: match POST responseId lookup missing company join — fixed
-- **P1**: export trainingSessions missing companyId filter — fixed
-- **P2**: persistentReminder via fake user/assistant exchange → moved to system prompt append
-- **P2**: grade route messages not validated — now filtered (role, length 10k, max 100 msgs)
-- **P2**: rate-limit SQL interval used string concat → replaced with `make_interval(secs =>)`
-- **P2**: DB-backed rate limiter (migration 0005) — replaces in-memory map that resets on cold start
+### Legal Pages
+- `/security` — infrastructure, encryption, RLS, subprocessors, disclosure, incident SLA
+- `/msa` — full MSA: 99% SLA, IP, confidentiality, liability cap 12mo fees, Ireland law
+- `/dpa` — GDPR Art.28 DPA: sub-processors table, 72h breach notification, deletion on termination
 
-### E2E Verification (all green)
-- Training chat: stream fix confirmed, responses non-empty, Jordan Hayes responds naturally
-- Consult: violet badge visible, expert HR advice returned for PIP vs written warning question
-- Personas page: Chat + Consult buttons confirmed on all company persona cards
-- Cross-tenant isolation API probes: spec written
+### Marketing Pages
+- `/vs/second-nature`, `/vs/mursion`, `/vs/yoodli` — feature comparison tables
+- `/for/hr-teams`, `/for/new-managers`, `/for/feedback-training` — ICP-targeted landing pages
 
-## Last Commits (in order)
-- `12432682` — test: E2E verification — training chat + consult feature confirmed working
-- `7b615431` — fix: security review P1s + P2s
-- `27677151` — fix: P1/P2 security — tenant isolation + DB rate limiter
-- `d6d19e02` — feat: persona anti-drift — persistentReminder
-- `d98d2838` — feat: Phase 11 — consult agents + enriched personas
-Branch: `phase/1-foundation` (pushed ✅)
+### E2E (previous session)
+- Two-company cross-tenant isolation suite: `e2e/tests/app/cross-tenant-isolation.spec.ts`
+- `e2e/helpers/seed-company-b.ts` — idempotent Company B seed helper
 
-## Deploy Status
-**LIVE** → https://personaproject-one.vercel.app
-Latest: `personaproject-no0pd05nk-arararar34-gmailcoms-projects.vercel.app` (promoted ✅)
-GitHub auto-deploy: NOT connected — vercel.com/…/settings/git (one-click)
+### Marketing Templates (C:/Users/ArielD/docs/marketing/)
+- `cold-email-sequence.md` — 6-email Apollo/Instantly sequence
+- `linkedin-sequence.md` — 5-message Expandi sequence (25/day cap)
+- `post-demo-sequence.md` — 4-email HubSpot follow-up
+- `customer-io-onboarding-sequence.md` — 8 behavior-triggered onboarding emails
+- `outbound-icp-guide.md` — ICP definitions, buyer personas, objection handling
 
-## Demo / Test Credentials
-| Email | Password | Role |
-|-------|----------|------|
-| admin@acme-demo.com | AcmeDemo123! | company_admin |
+## Next Action: Install, typecheck, migrate, then deploy
 
-**Note:** Only the admin account has a password. Employee accounts (alice@, dave@, grace@, carol@, emma@, bob@, frank@ @acme-demo.com) are survey respondents only — no login. Re-seed: `npm run seed` in `C:/Users/ArielD/personaproject`.
+```bash
+cd C:/Users/ArielD/personaproject
+npm install                 # stripe package newly added
+npx tsc --noEmit            # should be 0 errors
+npm run lint                # should be 0 new errors
+npx drizzle-kit migrate     # adds stripe_customer_id + stripe_subscription_id (needs DIRECT_URL)
+vercel deploy               # deploy after env vars set
+```
 
-## Architecture — Key Patterns
+## Ariel Must Do (cannot automate)
 
-### Consult vs Train mode
-- URL: `/training/[scenarioId]` = train, `/consult/[personaId]` = consult
-- API: `/api/chat/[personaId]?mode=consult` switches system prompt
-- Default personas: hardcoded `consultSystemPrompt` + `consultTagline` per persona
-- Company personas: derived from `persona.tagline` + `persona.systemPrompt`
+### Stripe — BLOCKING (billing 503s without these)
+1. Create Stripe account → stripe.com
+2. Secret Key → `STRIPE_SECRET_KEY`
+3. Create 3 products: $199/mo, $499/mo, $999/mo → copy Price IDs:
+   - `STRIPE_PRICE_STARTER`
+   - `STRIPE_PRICE_GROWTH`
+   - `STRIPE_PRICE_ENTERPRISE`
+4. Webhook → `https://personaproject-one.vercel.app/api/billing/webhook`
+   - Events: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.payment_failed
+   - Webhook Signing Secret → `STRIPE_WEBHOOK_SECRET`
+5. All 5 vars → Vercel project settings → redeploy
 
-### Anti-drift architecture
-- `PERSONA_GROUNDING_HEADER` in `lib/training/default-personas.ts` — prepended to every training prompt at export time
-- `persistentReminder` appended to `systemPrompt` when `conversationHistory.length >= 4`
-- Personal details (age, family) in base system prompt — marked organic-only, not intro
+### Inngest — BLOCKING (grading/clustering silently no-op)
+- Inngest dashboard → copy `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` → Vercel → redeploy
 
-### Stream pattern
-Route: `result.toTextStreamResponse()` → plain bytes  
-Client (training-session.tsx + consult-session.tsx): `decoder.decode(value, { stream: true })` — raw bytes  
-**Never** filter for `0:` prefix — that's `toDataStreamResponse()` format only
+### Google OAuth (optional — email/pw works without it)
+- `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` → Vercel
 
-## Remaining Gaps — Security (P2 only, P1s all fixed)
-- Cross-tenant E2E test: spec written, `test.fixme()` for full two-company test
-- Rate limiter: fails closed but has no in-process fallback for DB-down warmth
-- JWT claims: not validated against DB on every request (P2, unchanged)
+### Marketing Outreach (manual setup with docs/marketing/ templates)
+- Apollo.io: ICP filters from `outbound-icp-guide.md`, upload cold email sequence
+- Expandi: load `linkedin-sequence.md`, cap at 25 connection requests/day
+- Instantly.ai: warmup domain, load 6-email sequence
+- Customer.io: connect event source, load onboarding sequence
+- Fix Email 5 URL: `/use-cases/new-managers` → `/for/new-managers` (page exists now)
 
-## Remaining Gaps — Features
-- **INNGEST_EVENT_KEY + INNGEST_SIGNING_KEY**: set on Vercel dashboard → grading + clustering fire in production (grading shows "failed" locally without Inngest running)
-- Google OAuth: GOOGLE_CLIENT_ID/SECRET not set (email/pw works ✅)
-- Billing/Stripe: Phase 12, not started
-- RAG for consult: needs embedding API key (OpenAI/Voyage/Cohere) — Groq doesn't support embeddings
-- GitHub auto-deploy: one-click at vercel.com/…/settings/git
+## Review Checklist Before Launch
 
-## Next Actions (priority order)
-1. **Set INNGEST keys on Vercel** → grading fires in production (manual dashboard action)
-2. **GitHub auto-deploy** → vercel.com/…/settings/git (manual)
-3. **Phase 12: Billing/Stripe** — requires Stripe keys from user
-4. **RAG for consult** — requires embedding API key from user
+### Build
+- [ ] `npm install` then `npx tsc --noEmit` — 0 errors
+- [ ] `npm run lint` — 0 new errors/warnings
+- [ ] `npm run build` — 0 failures
+
+### Billing
+- [ ] Stripe test mode: checkout end-to-end (card 4242 4242 4242 4242)
+- [ ] Webhook fires → companies.subscription_status = 'active'
+- [ ] Customer Portal opens from active state
+- [ ] Suspended state shows payment failed banner + update button
+- [ ] Billing page only visible to company_admin / super_admin
+- [ ] Test bad webhook signature → 400 response
+
+### Support Widget
+- [ ] Open widget, send message, streaming response appears
+- [ ] Technical question → llama-3.3-70b selected (check server log)
+- [ ] Simple question → llama-3.1-8b selected
+- [ ] Trigger [ESCALATE] → email arrives at ariel.d@goatstudios.co
+- [ ] Rate limit blocks after 20 messages in 1 hour
+
+### Marketing / Legal Pages
+- [ ] All 9 pages render (security, msa, dpa, vs/*, for/*)
+- [ ] Add links in footer + marketing nav as appropriate
+- [ ] Fix cold-email Email 5 URL (see above)
+
+### Security
+- [ ] Cross-tenant E2E: `npx playwright test cross-tenant` → all 5 pass
+- [ ] Billing page auth: visit /settings/billing while logged out → redirected to /login
+- [ ] GDPR: DPA sub-processor list current (Supabase, Groq, Vercel, Resend)
+
+## Remaining Gaps
+
+| Gap | Severity | Owner |
+|-----|----------|-------|
+| Stripe env vars not set | BLOCKING | Ariel |
+| DB migration not run | BLOCKING | Ariel (after Stripe setup) |
+| Inngest keys not set | High | Ariel |
+| /for/* + /vs/* not in footer | Low | Claude next session |
+| Email sequence URL fix | Low | Ariel (docs/marketing/) |
+| No E2E for billing flow | Medium | Claude next session |
+| Chat rate limiter still in-memory | Medium | Claude next session |
+| GitHub auto-deploy not connected | Low | Ariel (one-click in Vercel) |
 
 ## Phase Status
 1 Foundation ✅ · 2 Survey ✅ · 3 Inngest ✅ · 4 Admin ✅ · 5 Clustering ✅
-6 Chat ✅ · 7 Hero Match ✅ · 8 Training ✅ · 9 Sales Enablement ✅ · 10 Training Library ✅ · 11 Consult Agents ✅
+6 Chat ✅ · 7 Hero Match ✅ · 8 Training ✅ · 9 Sales Enablement ✅ · 10 Training Library ✅
+11 Consult Agents ✅ · 12 Billing ✅ (code done, needs Stripe setup) · Support Agent ✅
+
+## Branch
+`phase/1-foundation` — not merged to main yet. Merge after Stripe confirmed working in test mode.
+
+## Deploy
+Last deploy: personaproject-one.vercel.app (from previous session — this session's changes not deployed yet)
+Run: `vercel deploy` after env vars added + migration run
