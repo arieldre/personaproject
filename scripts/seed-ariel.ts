@@ -165,6 +165,8 @@ Respond with ONLY valid JSON (no markdown):
     "demographics": {
       "gender": "male or female",
       "ageRange": "e.g. 32-42",
+      "familySituation": "e.g. married with 2 kids / single / in a relationship",
+      "location": "e.g. Tel Aviv, Israel",
       "yearsExperience": "e.g. 8-15 years",
       "seniorityLevel": "e.g. Senior IC / Team Lead",
       "typicalRole": "e.g. Engineering Manager, Product Lead",
@@ -173,10 +175,10 @@ Respond with ONLY valid JSON (no markdown):
     "personality": {
       "communicationStyle": "1 sentence",
       "workStyle": "1 sentence",
-      "motivators": ["motivator1", "motivator2", "motivator3"],
-      "stressors": ["stressor1", "stressor2"],
       "decisionMaking": "1 sentence"
     },
+    "motivators": ["motivator1", "motivator2", "motivator3"],
+    "stressors": ["stressor1", "stressor2"],
     "interactionTips": ["tip1", "tip2", "tip3"]
   },
   "systemPrompt": "You are [persona name]. [2-3 sentences of in-character behavioral guidance for an AI to embody this persona in workplace conversations. Focus on communication style, decision-making approach, and interpersonal tendencies.]"

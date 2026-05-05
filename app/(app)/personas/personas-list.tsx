@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import PersonaSidebar from './_components/PersonaSidebar'
 import PersonaHero from './_components/PersonaHero'
 import { getArchetypeColor } from './_components/archetypes'
@@ -18,12 +18,21 @@ export interface PersonaCard {
 export default function PersonasList({ personas }: { personas: PersonaCard[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  // Auto-select first persona on mount
+  const closeModal = useCallback(() => setSelectedId(null), [])
+
+  // ESC to close
   useEffect(() => {
-    if (personas.length > 0 && selectedId === null) {
-      setSelectedId(personas[0].id)
-    }
-  }, [personas, selectedId])
+    if (!selectedId) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeModal() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [selectedId, closeModal])
+
+  // Lock body scroll when modal open
+  useEffect(() => {
+    document.body.style.overflow = selectedId ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [selectedId])
 
   if (personas.length === 0) {
     return (
@@ -42,24 +51,51 @@ export default function PersonasList({ personas }: { personas: PersonaCard[] }) 
   const selectedColor = selectedIndex >= 0 ? getArchetypeColor(selectedIndex) : null
 
   return (
-    <div
-      className="flex flex-col md:flex-row h-[calc(100vh-57px)] overflow-hidden bg-neutral-950"
-    >
-      <PersonaSidebar
-        personas={personas}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-      />
-      <div
-        data-testid="persona-hero"
-        className="flex-1 min-w-0"
-      >
-        <PersonaHero
-          persona={selectedPersona}
-          archetypeColor={selectedColor}
-          personaIndex={selectedIndex}
+    <>
+      {/* ── Main layout (sidebar always visible) ── */}
+      <div className="flex flex-col md:flex-row h-[calc(100vh-57px)] overflow-hidden bg-neutral-950">
+        <PersonaSidebar
+          personas={personas}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
         />
+
+        {/* Right pane: prompt when nothing selected */}
+        <div className="flex-1 hidden md:flex items-center justify-center text-neutral-600 text-sm">
+          {!selectedId && 'Click a persona to open their profile'}
+        </div>
       </div>
-    </div>
+
+      {/* ── Centered modal overlay ── */}
+      {selectedPersona && selectedColor && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${selectedPersona.name} profile`}
+        >
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-neutral-950/85 backdrop-blur-sm"
+            onClick={closeModal}
+            aria-hidden="true"
+          />
+
+          {/* Modal card */}
+          <div
+            data-testid="persona-hero"
+            className="relative z-10 w-full max-w-2xl max-h-[90vh] bg-neutral-900 border border-neutral-700/60 rounded-2xl shadow-2xl shadow-black/60 flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <PersonaHero
+              persona={selectedPersona}
+              archetypeColor={selectedColor}
+              personaIndex={selectedIndex}
+              onClose={closeModal}
+            />
+          </div>
+        </div>
+      )}
+    </>
   )
 }

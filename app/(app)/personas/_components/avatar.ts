@@ -50,7 +50,7 @@ export function getAvatarDataUri(
 ): string {
   const demo = parseDemographics(summary)
   const age = parseAge(demo.ageRange)
-  const gender = demo.gender?.toLowerCase()
+  const gender = demo.gender?.trim().toLowerCase()
 
   // Truncate each component separately so no single field dominates the seed
   const seed = [

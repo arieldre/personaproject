@@ -118,7 +118,29 @@ const SYNTHETIC_EMPLOYEES = ARCHETYPES.flatMap((arch) =>
 interface PersonaProfile {
   name: string
   tagline: string
-  summary: { overview: string; strengths: string[]; growthAreas: string[] }
+  summary: {
+    overview: string
+    strengths: string[]
+    growthAreas: string[]
+    demographics: {
+      gender: string
+      ageRange: string
+      familySituation: string
+      location: string
+      yearsExperience: string
+      seniorityLevel: string
+      typicalRole: string
+      background: string
+    }
+    personality: {
+      communicationStyle: string
+      workStyle: string
+      decisionMaking: string
+    }
+    motivators: string[]
+    stressors: string[]
+    interactionTips: string[]
+  }
   systemPrompt: string
 }
 
@@ -128,6 +150,20 @@ async function generatePersonaProfile(cluster: Cluster, index: number, total: nu
 
 Cluster ${index + 1} of ${total}: ${cluster.memberIndices.length} employees
 Centroid personality dimensions (scale -1 to 1):
+  innovation: creative/experimental (+1) vs conventional/risk-averse (-1)
+  diligence: thorough/detail-oriented (+1) vs fast/done-is-good (-1)
+  social_energy: energized by people (+1) vs drained by people (-1)
+  agreeableness: warm/cooperative (+1) vs blunt/competitive (-1)
+  directness: straight-to-point (+1) vs diplomatic/indirect (-1)
+  verbosity: elaborate communicator (+1) vs terse/minimal (-1)
+  formality: formal/structured (+1) vs casual/informal (-1)
+  jargon_density: heavy technical language (+1) vs plain language (-1)
+  deference: defers to authority/consensus (+1) vs challenges authority (-1)
+  autonomy: self-directed/independent (+1) vs team-dependent (-1)
+  sycophancy: affirming/agreeable (+1) vs candid/challenging (-1)
+  conflict_mode: addresses conflict head-on (+1) vs avoids conflict (-1)
+  decision_basis: data/logic-driven (+1) vs intuition/values-driven (-1)
+  stress_resilience: calm under pressure (+1) vs reactive under pressure (-1)
 ${dimensionLines}
 
 Respond with ONLY valid JSON (no markdown):
@@ -137,7 +173,25 @@ Respond with ONLY valid JSON (no markdown):
   "summary": {
     "overview": "2-3 sentence overview of this persona",
     "strengths": ["strength1", "strength2", "strength3"],
-    "growthAreas": ["area1", "area2"]
+    "growthAreas": ["area1", "area2"],
+    "demographics": {
+      "gender": "male or female",
+      "ageRange": "e.g. 32-42",
+      "familySituation": "e.g. married with 2 kids / single / in a relationship",
+      "location": "e.g. Tel Aviv, Israel",
+      "yearsExperience": "e.g. 8-15 years",
+      "seniorityLevel": "e.g. Senior IC / Team Lead",
+      "typicalRole": "e.g. Engineering Manager, Product Lead",
+      "background": "1 sentence on typical education/career background"
+    },
+    "personality": {
+      "communicationStyle": "1 sentence",
+      "workStyle": "1 sentence",
+      "decisionMaking": "1 sentence"
+    },
+    "motivators": ["motivator1", "motivator2", "motivator3"],
+    "stressors": ["stressor1", "stressor2"],
+    "interactionTips": ["tip1", "tip2", "tip3"]
   },
   "systemPrompt": "You are [persona name]. [2-3 sentences of in-character behavioral guidance for an AI to embody this persona in workplace conversations. Focus on communication style, decision-making approach, and interpersonal tendencies.]"
 }`
@@ -145,7 +199,7 @@ Respond with ONLY valid JSON (no markdown):
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: GROQ_MODEL, messages: [{ role: 'user', content: prompt }], max_tokens: 800, temperature: 0.7 }),
+    body: JSON.stringify({ model: GROQ_MODEL, messages: [{ role: 'user', content: prompt }], max_tokens: 1000, temperature: 0.7 }),
   })
 
   if (!res.ok) throw new Error(`Groq API error ${res.status}: ${await res.text()}`)
