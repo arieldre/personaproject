@@ -14,11 +14,12 @@ import { DIMENSIONS } from '../lib/vcpq/vector'
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 const GROQ_API_KEY = process.env.GROQ_API_KEY!
-const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+const GROQ_MODEL = process.env.GROQ_MODEL
+if (!GROQ_MODEL) { console.error('✗ GROQ_MODEL env var not set'); process.exit(1) }
 const DATABASE_URL = process.env.DATABASE_URL!
 
 const USER_EMAIL = 'ariel@ariel.com'
-const USER_PASSWORD = 'ariel'
+const USER_PASSWORD = 'Ariel2026!'
 const USER_NAME = 'Ariel'
 const COMPANY_NAME = "Ariel's Company"
 const COMPANY_SLUG = 'ariel-co'
@@ -311,8 +312,14 @@ async function main() {
 
     // ── 6. Personas ──────────────────────────────────────────────────────────
     console.log(`\n── Step 6: Generating ${clusters.length} personas (Groq)`)
-    await sql`DELETE FROM personas WHERE questionnaire_id = ${questionnaireId}`
 
+    // Skip if personas already exist — DELETE+re-insert cascades conversations (FK onDelete:cascade)
+    const [{ count: existingPersonas }] = await sql<[{ count: string }]>`
+      SELECT COUNT(*)::text AS count FROM personas WHERE questionnaire_id = ${questionnaireId}
+    `
+    if (parseInt(existingPersonas, 10) > 0) {
+      console.log(`   Skipping — ${existingPersonas} personas already exist (re-run would wipe chat history)`)
+    } else {
     for (let i = 0; i < clusters.length; i++) {
       process.stdout.write(`   Persona ${i + 1}/${clusters.length}... `)
       const profile = await generatePersonaProfile(clusters[i], i, clusters.length)
@@ -325,6 +332,7 @@ async function main() {
       `
       console.log(profile.name)
     }
+    } // end persona-generation skip guard
 
     await sql`UPDATE jobs SET status = 'complete', completed_at = NOW(), updated_at = NOW() WHERE id = ${job.id}`
 

@@ -10,7 +10,8 @@ interface PageProps {
 }
 
 export default async function ChatPage({ params }: PageProps) {
-  const { personaId } = await params
+  const { personaId: rawPersonaId } = await params
+  const personaId = decodeURIComponent(rawPersonaId)
 
   const session = await getServerSession()
   if (!session?.user) {
