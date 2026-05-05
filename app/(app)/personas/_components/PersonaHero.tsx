@@ -1,7 +1,9 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { ARCHETYPE_MAP, type ArchetypeColor } from './archetypes'
+import { getAvatarDataUri } from './avatar'
 import DimensionBars from './DimensionBars'
 import type { PersonaCard } from '../personas-list'
 
@@ -10,15 +12,6 @@ interface PersonaHeroProps {
   archetypeColor: ArchetypeColor | null
   // personaIndex reserved for future use (archetype badge, etc.)
   personaIndex?: number
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('')
 }
 
 // Type-narrowed helpers for the jsonb summary field
@@ -119,7 +112,7 @@ export default function PersonaHero({ persona, archetypeColor }: PersonaHeroProp
   }
 
   const colors = ARCHETYPE_MAP[archetypeColor]
-  const initials = getInitials(persona.name)
+  const avatarSrc = getAvatarDataUri(persona.name, persona.summary, archetypeColor)
   const summary = parseSummary(persona.summary)
   const demographics = summary?.demographics
   const personality = summary?.personality
@@ -135,11 +128,16 @@ export default function PersonaHero({ persona, archetypeColor }: PersonaHeroProp
     >
       {/* ── Section 1: Header ── */}
       <div className="flex items-start gap-5">
-        {/* Avatar */}
-        <div
-          className={`w-16 h-16 rounded-full shrink-0 flex items-center justify-center text-xl font-semibold ${colors.avatarBg} ${colors.avatarText}`}
-        >
-          {initials}
+        {/* DiceBear avatar */}
+        <div className={`w-16 h-16 rounded-full shrink-0 overflow-hidden ring-2 ring-offset-2 ring-offset-neutral-950 ${colors.ringColor}`}>
+          <Image
+            src={avatarSrc}
+            alt={persona.name}
+            width={64}
+            height={64}
+            className="w-full h-full object-cover"
+            unoptimized
+          />
         </div>
 
         <div className="flex-1 min-w-0">

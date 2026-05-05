@@ -1,4 +1,6 @@
+import Image from 'next/image'
 import { ARCHETYPE_MAP, type ArchetypeColor } from './archetypes'
+import { getAvatarDataUri } from './avatar'
 import type { PersonaCard } from '../personas-list'
 
 interface PersonaThumbnailProps {
@@ -6,15 +8,6 @@ interface PersonaThumbnailProps {
   archetypeColor: ArchetypeColor
   isSelected: boolean
   onSelect: () => void
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('')
 }
 
 function getOverviewText(summary: unknown): string {
@@ -31,8 +24,8 @@ export default function PersonaThumbnail({
   onSelect,
 }: PersonaThumbnailProps) {
   const colors = ARCHETYPE_MAP[archetypeColor]
-  const initials = getInitials(persona.name)
   const overview = getOverviewText(persona.summary)
+  const avatarSrc = getAvatarDataUri(persona.name, persona.summary, archetypeColor)
 
   const containerClass = [
     'w-full cursor-pointer transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-neutral-950',
@@ -57,11 +50,16 @@ export default function PersonaThumbnail({
       }}
     >
       <div className="px-4 py-3 min-h-[72px] flex items-center gap-3">
-        {/* Avatar */}
-        <div
-          className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-semibold ${colors.avatarBg} ${colors.avatarText}`}
-        >
-          {initials}
+        {/* DiceBear avatar with archetype-colored ring */}
+        <div className={`w-10 h-10 rounded-full shrink-0 overflow-hidden ring-2 ring-offset-1 ring-offset-neutral-900 ${colors.ringColor}`}>
+          <Image
+            src={avatarSrc}
+            alt={persona.name}
+            width={40}
+            height={40}
+            className="w-full h-full object-cover"
+            unoptimized
+          />
         </div>
 
         {/* Text content */}
