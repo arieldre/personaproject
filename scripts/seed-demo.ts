@@ -22,7 +22,8 @@ const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
 const DATABASE_URL = process.env.DATABASE_URL!
 
 const ADMIN_EMAIL = 'admin@acme-demo.com'
-const ADMIN_PASSWORD = 'AcmeDemo123!'
+const ADMIN_PASSWORD = process.env.DEMO_ADMIN_PASSWORD
+if (!ADMIN_PASSWORD) { console.error('✗ DEMO_ADMIN_PASSWORD env var required — add to .env.local'); process.exit(1) }
 const ADMIN_NAME = 'Demo Admin'
 
 // ── 7 fully-specified employees (real answers → real vectors) ────────────────

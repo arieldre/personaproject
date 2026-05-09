@@ -11,7 +11,12 @@ import { checkRateLimit } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
-const groq = createGroq({ apiKey: process.env.GROQ_API_KEY })
+function getGroq() {
+  if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY not set')
+  return createGroq({ apiKey: process.env.GROQ_API_KEY })
+}
+
+const ALLOWED_ROLES = new Set(['user', 'assistant'])
 
 export async function POST(
   req: NextRequest,
@@ -38,6 +43,10 @@ export async function POST(
     if (!Array.isArray(clientMessages) || clientMessages.length === 0) {
       return new Response('messages must be a non-empty array', { status: 400 })
     }
+    // Reject any message with a role other than 'user' or 'assistant' — prevents role spoofing
+    if (clientMessages.some((m) => !ALLOWED_ROLES.has(m.role))) {
+      return new Response('Invalid message role', { status: 400 })
+    }
   } catch {
     return new Response('Invalid JSON body', { status: 400 })
   }
@@ -59,14 +68,24 @@ export async function POST(
       persistentReminder = defaultPersona.persistentReminder
     }
   } else {
-    // Company persona — enforce tenant isolation
+    // Company persona — enforce tenant isolation via SQL (not JS comparison)
+    if (!user.companyId) {
+      return new Response('Persona not found', { status: 404 })
+    }
+
     const [persona] = await db
-      .select()
+      .select({
+        id: personas.id,
+        companyId: personas.companyId,
+        systemPrompt: personas.systemPrompt,
+        tagline: personas.tagline,
+        name: personas.name,
+      })
       .from(personas)
-      .where(eq(personas.id, personaId))
+      .where(and(eq(personas.id, personaId), eq(personas.companyId, user.companyId)))
       .limit(1)
 
-    if (!persona || persona.companyId !== user.companyId) {
+    if (!persona) {
       return new Response('Persona not found', { status: 404 })
     }
 
@@ -123,7 +142,7 @@ ${persona.systemPrompt ?? ''}`
       activeConversationId = existingConv.id
     } else {
       const firstUserMsg = clientMessages.find((m) => m.role === 'user')
-      const title = firstUserMsg ? firstUserMsg.content.slice(0, 50) : 'New conversation'
+      const title = firstUserMsg ? firstUserMsg.content.replace(/<[^>]*>/g, '').slice(0, 50) : 'New conversation'
 
       const [newConv] = await db
         .insert(conversations)
@@ -156,7 +175,7 @@ ${persona.systemPrompt ?? ''}`
     const wrappedUserMessage = `<user_message>${sanitized}</user_message>`
 
     const result = streamText({
-      model: groq(process.env.GROQ_MODEL!),
+      model: getGroq()(process.env.GROQ_MODEL!),
       system: systemPrompt,
       messages: [...historyMessages, { role: 'user', content: wrappedUserMessage }],
       maxOutputTokens: 400,
@@ -202,7 +221,7 @@ ${persona.systemPrompt ?? ''}`
   ]
 
   const result = streamText({
-    model: groq(process.env.GROQ_MODEL!),
+    model: getGroq()(process.env.GROQ_MODEL!),
     system: finalSystemPrompt,
     messages: messagesWithHistory,
     maxOutputTokens: 400,

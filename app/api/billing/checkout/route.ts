@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/server'
 import { getStripe, PRICE_IDS, type PriceTier } from '@/lib/stripe'
+import { db } from '@/lib/db'
+import { companies } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 
 const VALID_TIERS: PriceTier[] = ['starter', 'growth', 'enterprise']
 
@@ -40,16 +43,31 @@ export async function POST(req: NextRequest) {
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    line_items: [{ price: priceId, quantity: 1 }],
-    customer_email: user.email,
-    allow_promotion_codes: true,
-    // company_id stored in metadata so webhook can identify which company to update
-    metadata: { company_id: user.companyId ?? '', user_id: user.id },
-    success_url: `${baseUrl}/settings/billing?success=1`,
-    cancel_url: `${baseUrl}/settings/billing`,
-  })
+  // Reuse existing Stripe customer to avoid duplicate customer objects on repeat purchase
+  const [company] = await db
+    .select({ stripeCustomerId: companies.stripeCustomerId })
+    .from(companies)
+    .where(eq(companies.id, user.companyId))
+    .limit(1)
+
+  let session
+  try {
+    session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ price: priceId, quantity: 1 }],
+      ...(company?.stripeCustomerId
+        ? { customer: company.stripeCustomerId }
+        : { customer_email: user.email }),
+      allow_promotion_codes: true,
+      // company_id stored in metadata so webhook can identify which company to update
+      metadata: { company_id: user.companyId ?? '', user_id: user.id },
+      success_url: `${baseUrl}/settings/billing?success=1`,
+      cancel_url: `${baseUrl}/settings/billing`,
+    })
+  } catch (err) {
+    console.error('[billing/checkout] Stripe session create failed:', err)
+    return NextResponse.json({ error: 'Failed to create checkout session' }, { status: 503 })
+  }
 
   return NextResponse.json({ url: session.url })
 }

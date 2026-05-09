@@ -5,7 +5,6 @@ import {
   user as userTable,
   questionnaireResponses,
   conversations,
-  messages,
   trainingSessions,
 } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
@@ -23,24 +22,55 @@ export async function GET() {
     db.select().from(userTable).where(eq(userTable.id, authUser.id)).limit(1),
 
     db
-      .select()
+      .select({
+        id: questionnaireResponses.id,
+        respondentName: questionnaireResponses.respondentName,
+        respondentEmail: questionnaireResponses.respondentEmail,
+        status: questionnaireResponses.status,
+        completedAt: questionnaireResponses.completedAt,
+        createdAt: questionnaireResponses.createdAt,
+      })
       .from(questionnaireResponses)
       .where(eq(questionnaireResponses.userId, authUser.id)),
 
-    // Conversations with their messages — userId alone is sufficient (user → single company)
+    // Conversations with messages — exclude manager-authored feedback and internal IDs
     db.query.conversations.findMany({
       where: eq(conversations.userId, authUser.id),
-      with: { messages: true },
+      columns: {
+        id: true,
+        title: true,
+        createdAt: true,
+        lastMessageAt: true,
+      },
+      with: {
+        messages: {
+          columns: {
+            role: true,
+            content: true,
+            createdAt: true,
+          },
+        },
+      },
     }),
 
     // Scope to companyId to prevent cross-tenant leakage if userId is ever reused
     authUser.companyId
       ? db
-          .select()
+          .select({
+            id: trainingSessions.id,
+            scenarioId: trainingSessions.scenarioId,
+            overallScore: trainingSessions.overallScore,
+            createdAt: trainingSessions.createdAt,
+          })
           .from(trainingSessions)
           .where(and(eq(trainingSessions.userId, authUser.id), eq(trainingSessions.companyId, authUser.companyId)))
       : db
-          .select()
+          .select({
+            id: trainingSessions.id,
+            scenarioId: trainingSessions.scenarioId,
+            overallScore: trainingSessions.overallScore,
+            createdAt: trainingSessions.createdAt,
+          })
           .from(trainingSessions)
           .where(eq(trainingSessions.userId, authUser.id)),
   ])

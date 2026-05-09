@@ -19,7 +19,8 @@ if (!GROQ_MODEL) { console.error('✗ GROQ_MODEL env var not set'); process.exit
 const DATABASE_URL = process.env.DATABASE_URL!
 
 const USER_EMAIL = 'ariel@ariel.com'
-const USER_PASSWORD = 'Ariel2026!'
+const USER_PASSWORD = process.env.SEED_ADMIN_PASSWORD
+if (!USER_PASSWORD) { console.error('✗ SEED_ADMIN_PASSWORD env var required — add to .env.local'); process.exit(1) }
 const USER_NAME = 'Ariel'
 const COMPANY_NAME = "Ariel's Company"
 const COMPANY_SLUG = 'ariel-co'

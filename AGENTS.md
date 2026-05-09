@@ -28,8 +28,8 @@ npx tsc --noEmit
 
 ## Demo Credentials
 
-- Admin: `admin@acme-demo.com` / `AcmeDemo123!`
-- Employees: `alice@`, `bob@`, `carol@`, `dave@`, `emma@`, `frank@`, `grace@` `@acme-demo.com` / `AcmeDemo123!`
+- Admin: `admin@acme-demo.com` / set via `DEMO_ADMIN_PASSWORD` in `.env.local`
+- Employees: `alice@`, `bob@`, `carol@`, `dave@`, `emma@`, `frank@`, `grace@` `@acme-demo.com` / same as above
 
 ## Key Files
 

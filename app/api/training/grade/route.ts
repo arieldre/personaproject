@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { trainingSessions, jobs, personas } from '@/lib/db/schema'
 import { inngest } from '@/lib/inngest/client'
 import { getDefaultPersona } from '@/lib/training/default-personas'
+import { getScenario } from '@/lib/training/scenarios'
 import { eq, and } from 'drizzle-orm'
 
 export async function POST(req: NextRequest) {
@@ -38,6 +39,9 @@ export async function POST(req: NextRequest) {
       .map((m) => ({ role: m.role, content: String(m.content).slice(0, 10_000) }))
     if (typeof scenarioId !== 'string' || !scenarioId) {
       return NextResponse.json({ error: 'scenarioId is required' }, { status: 400 })
+    }
+    if (!getScenario(scenarioId)) {
+      return NextResponse.json({ error: 'scenarioId not found' }, { status: 400 })
     }
     if (typeof personaId !== 'string' || !personaId) {
       return NextResponse.json({ error: 'personaId is required' }, { status: 400 })

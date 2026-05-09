@@ -9,7 +9,8 @@ import fs from 'fs'
 
 const BASE_URL = 'http://localhost:3000'
 const EMAIL = 'admin@acme-demo.com'
-const PASSWORD = 'AcmeDemo123!'
+const PASSWORD = process.env.DEMO_ADMIN_PASSWORD!
+if (!PASSWORD) { console.error('✗ DEMO_ADMIN_PASSWORD env var required — add to .env.local'); process.exit(1) }
 const OUT_DIR = path.join(process.cwd(), 'e2e/screenshots/demo')
 
 async function main() {

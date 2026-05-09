@@ -35,7 +35,10 @@ export async function POST(req: NextRequest) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
         const companyId = session.metadata?.company_id
-        if (!companyId) break
+        if (!companyId) {
+          console.error('[billing/webhook] checkout.session.completed missing company_id in metadata, session:', session.id)
+          return NextResponse.json({ error: 'missing company_id in metadata' }, { status: 400 })
+        }
 
         await db
           .update(companies)

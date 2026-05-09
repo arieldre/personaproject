@@ -7,7 +7,12 @@ import { eq } from 'drizzle-orm'
 const PURGE_DAYS = 30
 
 export async function POST() {
-  const authUser = await requireAuth()
+  let authUser: { id: string }
+  try {
+    authUser = (await requireAuth()) as { id: string }
+  } catch {
+    return new Response('Unauthorized', { status: 401 })
+  }
 
   const now = new Date()
   const purgeAt = new Date(now.getTime() + PURGE_DAYS * 24 * 60 * 60 * 1000)

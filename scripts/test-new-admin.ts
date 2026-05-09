@@ -14,7 +14,8 @@ const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
 const DATABASE_URL = process.env.DATABASE_URL!
 
 const EMAIL = 'ariel@ariel.com'
-const PASSWORD = 'arid'
+const PASSWORD = process.env.SEED_ADMIN_PASSWORD
+if (!PASSWORD) { console.error('✗ SEED_ADMIN_PASSWORD env var required — add to .env.local'); process.exit(1) }
 const NAME = 'Ariel'
 
 const sql = postgres(DATABASE_URL, { prepare: false })
